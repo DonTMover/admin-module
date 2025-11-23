@@ -22,7 +22,10 @@ RUN npm install --no-audit --no-fund --production && \
 FROM node:20-alpine AS frontend-build
 WORKDIR /frontend
 COPY frontend/admin-frontend/package*.json ./
-RUN npm ci --no-audit --no-fund --production
+ENV ROLLUP_DISABLE_NATIVE=1
+# Install with devDependencies so TypeScript/Vite and optional Rollup native binaries are available.
+# Using npm install (vs ci --production) avoids the optional dependency bug on musl (see npm/cli#4828).
+RUN npm install --no-audit --no-fund
 COPY frontend/admin-frontend .
 RUN npm run build
 
