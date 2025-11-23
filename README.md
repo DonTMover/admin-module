@@ -203,6 +203,51 @@ admin-module:
 - Улучшение accessibility (контраст, aria-атрибуты)
 - CSP / security заголовки через Caddy
 
+### React (SPA) миграция админки
+Отдельный фронтенд Vite + React + TypeScript находится в `src/frontend/admin-frontend` и постепенно заменяет Jinja2 шаблоны.
+
+| Шаблон | Путь (SPA) | Компонент |
+|--------|-----------|-----------|
+| `admin/dashboard.html` | `/admin` | `Dashboard.tsx` |
+| `admin/login.html` | `/admin/login` | `Login.tsx` |
+| `admin/register.html` | `/auth/register` | `Register.tsx` |
+| `admin/profile.html` | `/admin/profile` | `Profile.tsx` |
+| `admin/not_authenticated.html` | Guard (401) | `NotAuthenticated.tsx` |
+
+Layout (`base.html`) перенесён в `Layout.tsx`. Токен после логина (`/auth/token`) хранится в `localStorage` (для продакшена предпочтительно HttpOnly cookie).
+
+Запуск фронтенда:
+```powershell
+cd src/frontend/admin-frontend
+npm install
+npm run dev
+```
+По умолчанию: `http://localhost:5173`. Backend: `http://localhost:8000`. Возможные стратегии интеграции:
+1. Оставить два origin и включить CORS.
+2. Reverse proxy (Caddy) объединяет: статический SPA + прокси на API.
+3. Сборка (`npm run build`) и раздача `dist` через FastAPI (`StaticFiles`).
+
+API слой: `src/services/api.ts` (Axios + интерцептор Authorization). Функции: `login`, `fetchUsers`, временный `fetchCurrentUser` (по payload JWT). Рекомендуется добавить эндпоинт `/auth/me`.
+
+Следующие шаги SPA:
+- Добавить `/auth/me` и заменить эвристику в `fetchCurrentUser`.
+- Ввести глобальный AuthContext вместо прямого чтения `localStorage`.
+- Пагинация/фильтры пользователей, optimistic updates.
+- Обработка 401/403 через Axios interceptor + авто-logout при exp.
+- Перенос темизации и анимаций из сырых CSS в Tailwind слои/variants.
+- Кодогенерация типов из OpenAPI (например `openapi-typescript`).
+
+Усиление безопасности:
+- HttpOnly cookie + CSRF защита.
+- CSP (script-src 'self') + отключение inline скриптов.
+- Регулярная валидация exp / refresh токенов.
+
+Быстрая проверка:
+1. Зарегистрируйтесь `/auth/register`.
+2. Войдите `/admin/login`.
+3. Дашборд `/admin` загрузит список пользователей.
+4. Профиль `/admin/profile` покажет текущего пользователя (эвристически).
+
 ---
 Локальная автоподключаемость к БД реализована через фоновые повторные попытки — упрощает разработку и последовательный старт контейнеров.
 
