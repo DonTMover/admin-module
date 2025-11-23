@@ -129,6 +129,30 @@ services:
 
 Compose автоматически подхватит override файл при запуске. Для продакшена рекомендуется НЕ коммитить файл с секретами, а передавать их через внешние механизмы (Docker secrets, Swarm/K8s config/secrets, Vault, переменные окружения CI/CD).
 
+### Инициализация дополнительной БД `admin`
+Чтобы подавить сообщения вида `FATAL:  database "admin" does not exist` добавлен файл `postgres-init/init-extra.sql` монтируемый в контейнер (`/docker-entrypoint-initdb.d`). Он создаёт вторую пустую БД `admin` при первом старте (когда каталог данных ещё пуст). Если volume уже существовал, скрипт не выполнится — удалите volume `admin-module_pg_data`, если хотите заново пересоздать все базы.
+
+### Caddy: dev vs prod
+Файл `Caddyfile` теперь по умолчанию настроен на локальный режим:
+```caddy
+localhost:80 {
+	encode gzip
+	reverse_proxy admin-module:8000
+	respond /health 200
+}
+```
+Продакшен пример (с публичным доменом и автоматическим TLS) оставлен закомментированным внизу файла. В деве внешний ACME отключён — это ускоряет запуск и избавляет от лишних попыток выдачи сертификата. Для локального HTTPS можно заменить `localhost:80` на:
+```caddy
+localhost {
+	encode gzip
+	tls internal
+	reverse_proxy admin-module:8000
+}
+```
+
+### Удаление устаревшего ключа `version`
+В обоих compose файлах убран атрибут `version` (Docker игнорирует его в новых версиях, чтобы избежать путаницы).
+
 Запуск:
 ```powershell
 docker compose up --build -d

@@ -1,13 +1,14 @@
 from fastapi import FastAPI
 import asyncio
 import logging
+from fastapi.responses import RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from app.api.routes.admin import router as admin_router
 from app.api.routes.auth import router as auth_router
 from app.api.routes.users import router as users_router
 from app.core.config import get_settings
 from app.core.db import engine
-from app.core.db_init import background_db_initializer, db_initialized, db_last_error, try_initialize
+from app.core.db_init import background_db_initializer, db_initialized, db_last_error, db_attempts, try_initialize
 from app.models.base import Base
 import uvicorn
 
@@ -38,7 +39,12 @@ async def health():
         "status": "ok",
         "db_initialized": db_initialized,
         "db_error": db_last_error,
+        "db_attempts": db_attempts,
     }
+
+@app.get("/", include_in_schema=False)
+async def root_redirect():
+    return RedirectResponse(url="/admin/")
 
 @app.on_event("startup")
 async def on_startup():

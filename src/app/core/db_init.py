@@ -12,10 +12,13 @@ logger = logging.getLogger(__name__)
 # Mutable state tracking DB availability
 db_initialized: bool = False
 db_last_error: Optional[str] = None
+db_attempts: int = 0
 
 async def try_initialize(engine: AsyncEngine) -> bool:
     """Attempt to create metadata; return True on success, False otherwise."""
     global db_initialized, db_last_error
+    global db_attempts
+    db_attempts += 1
     try:
         async with engine.begin() as conn:
             await conn.run_sync(Base.metadata.create_all)
