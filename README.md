@@ -1,6 +1,6 @@
-## Встраиваемая админка (FastAPI + PostgreSQL)
+## Встраиваемая админка (FastAPI + PostgreSQL + React/MUI)
 
-Прототип административного модуля: FastAPI + PostgreSQL, Jinja2 шаблоны и статика, JWT авторизация. Поддерживает отложенную (повторную) инициализацию БД: приложение стартует даже если Postgres не готов и периодически пытается создать схему.
+Административный модуль для управления пользователями и сущностями. Backend на FastAPI + PostgreSQL, frontend на React + TypeScript + Vite + MUI. Поддерживает отложенную (повторную) инициализацию БД: приложение стартует даже если Postgres не готов и периодически пытается создать схему.
 
 ### Структура
 ```
@@ -10,11 +10,18 @@ src/
 		models/      # SQLAlchemy модели
 		schemas/     # Pydantic схемы
 		services/    # Логика и доступ к данным
-		api/routes/  # Маршруты FastAPI (админка)
-		ui/          # Шаблоны и статика
+		api/routes/  # Маршруты FastAPI (API админки)
+		ui/static/spa/ # Собранная React SPA
 		main.py      # Инициализация приложения
-	main.py        # Точка входа (uvicorn)
+	frontend/
+		admin-frontend/ # Исходники React/MUI SPA (Vite)
 ```
+
+Более подробное описание архитектуры — в `docs/ARCHITECTURE.md`, а также:
+
+- Backend: `docs/BACKEND.md`
+- Frontend: `docs/FRONTEND.md`
+- Деплой: `docs/DEPLOYMENT.md`
 
 ### Переменные окружения (`ADMIN_`)
 Все переменные теперь задаются напрямую внутри `docker-compose.yml` (без файла `.env`). Для изменения конфигурации правьте блок `environment:` у сервиса `admin-module`.
@@ -30,21 +37,7 @@ src/
 
 Строка подключения (async): `postgresql+asyncpg://user:pass@host:port/db`.
 
-### Установка зависимостей
-```powershell
-cd src
-pip install .  # или 'pip install -e .'
-```
-Или минимально:
-```powershell
-pip install fastapi uvicorn[standard] sqlalchemy asyncpg jinja2 alembic pydantic pydantic-settings
-```
-
-### Dev-запуск
-```powershell
-uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
-```
-Админка: http://localhost:8000/admin/
+> ⚠️ **Важно:** запуск приложения предполагается **только через Docker** (compose). Локальная установка зависимостей и прямой запуск `uvicorn` допускается только для отладки и не описан здесь подробно.
 
 ### Эндпоинты (основные)
 | Назначение | Метод | Путь |
@@ -69,12 +62,23 @@ Swagger: `/admin/docs` • ReDoc: `/admin/redoc` • JSON: `/admin/openapi.json`
 Если база недоступна при старте — фоновой task повторяет попытки каждые ~10 секунд до успеха.
 
 ### Миграции (Alembic)
-Рекомендуется заменить авто‑создание на миграции:
-```powershell
-alembic init migrations
-alembic revision --autogenerate -m "init"
-alembic upgrade head
-```
+
+Миграции уже настроены через Alembic (`alembic.ini`, каталог `alembic/`).
+
+Варианты применения миграций:
+
+1. **Через web‑интерфейс (рекомендуется):**
+	- Залогиниться под админом.
+	- Перейти на `/admin/migrations`.
+	- Нажать кнопку "Выполнить upgrade head" — backend выполнит `alembic upgrade head`.
+
+2. **Через CLI (для разработчиков):**
+	- Локально установить dev‑зависимости (`pip install .[dev]`).
+	- Выполнить:
+	  ```powershell
+	  alembic revision --autogenerate -m "init"
+	  alembic upgrade head
+	  ```
 
 ### Тесты (пример)
 ```python
@@ -103,7 +107,8 @@ async def seed():
 asyncio.run(seed())
 ```
 
-### Docker Compose (локально с Postgres)
+### Запуск через Docker Compose (единственный поддерживаемый способ)
+
 Сервисы: `postgres`, `admin-module`, `caddy`.
 
 Базовые переменные (host, port, db, user) определены в `docker-compose.yml`. Чувствительные данные вынесены в `docker-compose.override.yml`:
@@ -154,11 +159,18 @@ localhost {
 ### Удаление устаревшего ключа `version`
 В обоих compose файлах убран атрибут `version` (Docker игнорирует его в новых версиях, чтобы избежать путаницы).
 
-Запуск:
+Запуск (из корня репозитория):
 ```powershell
-docker compose up --build -d
+docker compose build
+docker compose up -d
 ```
-Изменение параметров: правьте `environment:` у `admin-module` и перезапустите `docker compose up -d`.
+
+После старта:
+
+- Открыть `http://localhost` — Caddy проксирует на FastAPI/SPA.
+- Админка доступна по `/admin`.
+
+Изменение параметров: правьте `environment:` у `admin-module` в `docker-compose.yml` / `docker-compose.override.yml` и перезапускайте `docker compose up -d`.
 
 ### Caddy Proxy
 `Caddyfile` пример:
@@ -169,7 +181,10 @@ admin.example.com {
 }
 ```
 
-### Использование как отдельного контейнера
+### Использование как отдельного контейнера (продакшн)
+
+В продакшн‑окружении образ `admin-module` может подключаться к внешней БД и Caddy/nginx:
+
 ```yaml
 admin-module:
 	image: your-registry/admin-module:latest
@@ -184,15 +199,9 @@ admin-module:
 		- "8000:8000"
 ```
 
-### Frontend & Tailwind
-Добавлена полноценная цепочка сборки Tailwind:
-1. Исходник `app/ui/static/css/tailwind-input.css` с `@tailwind` директивами и кастомными компонентами.
-2. Конфиг `tailwind.config.js` (путь к шаблонам, палитра `brand`).
-3. PostCSS конфиг `postcss.config.js` + зависимости (`tailwindcss`, `autoprefixer`).
-4. Мультистейдж Docker собирает минифицированный `tailwind.css` и копирует в финальный образ.
-Существующие `styles.css`, `theme.css`, `animations.css` остаются для переменных и анимаций.
+### Frontend (React/MUI SPA)
 
-401 ответы на маршрутах `/admin/*` теперь автоматически рендерят анимированный шаблон `not_authenticated.html` через кастомный `HTTPException` handler.
+Jinja2‑шаблоны и Tailwind‑цепочка больше не используются в основном UI. Админка реализована как SPA на React + MUI в `src/frontend/admin-frontend` и собирается в Docker‑образе в папку `app/ui/static/spa`.
 
 ### План дальнейшего развития
 - RBAC / роли
@@ -204,33 +213,21 @@ admin-module:
 - Улучшение accessibility (контраст, aria-атрибуты)
 - CSP / security заголовки через Caddy
 
-### React (SPA) миграция админки
-Отдельный фронтенд Vite + React + TypeScript находится в `src/frontend/admin-frontend` и постепенно заменяет Jinja2 шаблоны.
+### React (SPA) структура
 
-| Шаблон | Путь (SPA) | Компонент |
-|--------|-----------|-----------|
-| `admin/dashboard.html` | `/admin` | `Dashboard.tsx` |
-| `admin/login.html` | `/admin/login` | `Login.tsx` |
-| `admin/register.html` | `/auth/register` | `Register.tsx` |
-| `admin/profile.html` | `/admin/profile` | `Profile.tsx` |
-| `admin/not_authenticated.html` | Guard (401) | `NotAuthenticated.tsx` |
-| — | `/auth/me` (API) | (используется в `fetchCurrentUser`) |
+Отдельный фронтенд Vite + React + TypeScript находится в `src/frontend/admin-frontend` и **полностью заменяет** Jinja2‑шаблоны.
 
-Layout (`base.html`) перенесён в `Layout.tsx`. Токен после логина (`/auth/token`) хранится в `localStorage` (для продакшена предпочтительно HttpOnly cookie).
+Ключевые маршруты SPA:
 
-Запуск фронтенда:
-```powershell
-cd src/frontend/admin-frontend
-npm install
-npm run dev
-```
-По умолчанию: `http://localhost:5173`. Backend: `http://localhost:8000`. Возможные стратегии интеграции:
-1. Оставить два origin и включить CORS.
-2. Reverse proxy (Caddy) объединяет: статический SPA + прокси на API.
-3. Сборка (`npm run build`) и раздача `dist` через FastAPI (`StaticFiles`).
+| Путь | Компонент |
+|------|-----------|
+| `/admin` | `Dashboard.tsx` |
+| `/admin/login` | `Login.tsx` |
+| `/auth/register` | `Register.tsx` |
+| `/admin/profile` | `Profile.tsx` |
+| `/admin/migrations` | `Migrations.tsx` |
 
-API слой: `src/services/api.ts` (Axios + интерцептор Authorization). Функции: `login`, `fetchUsers`, временный `fetchCurrentUser` (по payload JWT). Рекомендуется добавить эндпоинт `/auth/me`.
-Теперь реализован `/auth/me` и `fetchCurrentUser` обращается напрямую.
+Layout реализован в `Layout.tsx`. Токен после логина (`/auth/token`) хранится в `localStorage` (для продакшена можно перейти на HttpOnly cookie).
 
 Следующие шаги SPA:
 - Refresh токены / ротация.
@@ -262,7 +259,7 @@ Docker multi-stage:
 - Разделение CSS и фронтенда ускоряет инкрементальные изменения (изменение React кода не пересобирает Python deps).
 - Финальная стадия НЕ выполняет повторный `pip install .`, повторное создание wheel исключено — зависимости приходят из слоя `backend-build`.
 
-Сборка:
+Сборка и запуск:
 ```powershell
 docker compose build admin-module
 docker compose up -d
@@ -274,7 +271,7 @@ docker buildx create --name multi --use
 docker buildx build --platform linux/amd64,linux/arm64 -t yourrepo/admin-module:latest --push ./src
 ```
 
-При необходимости миграций установите dev extras локально:
+При необходимости разработки/миграций установите dev extras локально:
 ```powershell
 pip install .[dev]
 alembic revision --autogenerate -m "init"
