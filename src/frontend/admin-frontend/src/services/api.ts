@@ -36,16 +36,10 @@ export async function fetchUsers() {
   return data;
 }
 
-// Derive current user by matching email from token if JWT with email subject; placeholder implementation
 export async function fetchCurrentUser(): Promise<User | null> {
   try {
-    const users = await fetchUsers();
-    // If token encodes email, decode (assumes JWT). This is naive; adjust to backend specifics.
-    const token = localStorage.getItem('access_token');
-    if (!token) return null;
-    const payload = JSON.parse(atob(token.split('.')[1] || 'e30='));
-    const email = payload.sub || payload.email;
-    return users.find(u => u.email === email) || null;
+    const { data } = await api.get<User>('/auth/me');
+    return data;
   } catch {
     return null;
   }

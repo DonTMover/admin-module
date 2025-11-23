@@ -25,6 +25,9 @@ services:
       context: ./src
       dockerfile: Dockerfile
     container_name: admin-module
+    # Mount local frontend source for rapid dev (optional):
+    # volumes:
+    #   - ./src/frontend/admin-frontend:/app/frontend-src:ro
     environment:
       - ADMIN_POSTGRES_HOST=postgres
       - ADMIN_POSTGRES_PORT=5432
@@ -45,6 +48,20 @@ services:
       start_period: 10s
     networks:
       - admin-net
+
+  # Optional separate live dev service for React (uncomment when needed)
+  # admin-frontend:
+  #   build:
+  #     context: ./src/frontend/admin-frontend
+  #   command: ["npm","run","dev"]
+  #   ports:
+  #     - "5173:5173"
+  #   volumes:
+  #     - ./src/frontend/admin-frontend:/frontend:rw
+  #   networks:
+  #     - admin-net
+  #   depends_on:
+  #     - admin-module
 
   caddy:
     image: caddy:2-alpine

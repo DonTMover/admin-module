@@ -50,6 +50,7 @@ uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
 | Назначение | Метод | Путь |
 |------------|-------|------|
 | Получить токен | POST | `/auth/token` |
+| Текущий пользователь | GET | `/auth/me` |
 | CRUD пользователи | GET/POST/PUT/DELETE | `/admin/users/…` |
 | Дашборд | GET | `/admin/` |
 
@@ -213,6 +214,7 @@ admin-module:
 | `admin/register.html` | `/auth/register` | `Register.tsx` |
 | `admin/profile.html` | `/admin/profile` | `Profile.tsx` |
 | `admin/not_authenticated.html` | Guard (401) | `NotAuthenticated.tsx` |
+| — | `/auth/me` (API) | (используется в `fetchCurrentUser`) |
 
 Layout (`base.html`) перенесён в `Layout.tsx`. Токен после логина (`/auth/token`) хранится в `localStorage` (для продакшена предпочтительно HttpOnly cookie).
 
@@ -228,9 +230,10 @@ npm run dev
 3. Сборка (`npm run build`) и раздача `dist` через FastAPI (`StaticFiles`).
 
 API слой: `src/services/api.ts` (Axios + интерцептор Authorization). Функции: `login`, `fetchUsers`, временный `fetchCurrentUser` (по payload JWT). Рекомендуется добавить эндпоинт `/auth/me`.
+Теперь реализован `/auth/me` и `fetchCurrentUser` обращается напрямую.
 
 Следующие шаги SPA:
-- Добавить `/auth/me` и заменить эвристику в `fetchCurrentUser`.
+- Refresh токены / ротация.
 - Ввести глобальный AuthContext вместо прямого чтения `localStorage`.
 - Пагинация/фильтры пользователей, optimistic updates.
 - Обработка 401/403 через Axios interceptor + авто-logout при exp.
