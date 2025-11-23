@@ -1,23 +1,15 @@
 {
-	# Опционально: email для ACME
 	email you@example.com
-	# auto_https on
 }
 
-# DEV configuration (no external ACME): plain HTTP on :80
 localhost:80 {
 	encode gzip
 
 	# Health-check for Caddy itself
 	respond /health 200
 
-	# API (FastAPI backend)
-	@api path /admin/api* /admin/docs* /admin/redoc* /admin/openapi.json
-	reverse_proxy @api admin-module:8000
-
-	# React SPA for all other /admin paths
-	@admin path /admin* 
-	reverse_proxy @admin admin-frontend:4173
+	# Всё остальное обслуживает FastAPI (React SPA + API)
+	reverse_proxy admin-module:8000
 }
 
 # PROD example (uncomment and adjust domain + email; requires public DNS pointing here)

@@ -42,8 +42,15 @@ async def custom_http_exception_handler(request: Request, exc: HTTPException):
         status_code=exc.status_code,
     )
 # Статика (CSS/JS)
-# Correct relative path: running from 'src' so omit leading 'src/'
+# Общая статика (старые стили/ресурсы)
 app.mount("/static", StaticFiles(directory="app/ui/static"), name="static")
+
+# Статика SPA-бандла (Vite кладёт JS/CSS в /assets рядом с index.html)
+app.mount(
+    "/assets",
+    StaticFiles(directory="app/ui/static/spa/assets"),
+    name="spa-assets",
+)
 
 @app.get("/health")
 async def health():

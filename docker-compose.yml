@@ -49,18 +49,6 @@ services:
     networks:
       - admin-net
 
-  # React admin frontend (built static, served by Node)
-  admin-frontend:
-    build:
-      context: ./src/frontend/admin-frontend
-      dockerfile: Dockerfile
-    container_name: admin-frontend
-    ports:
-      - "4173:4173"
-    networks:
-      - admin-net
-    depends_on:
-      - admin-module
 
   caddy:
     image: caddy:2-alpine
