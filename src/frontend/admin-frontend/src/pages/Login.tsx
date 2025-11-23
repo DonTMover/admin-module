@@ -1,7 +1,8 @@
 import type { FormEvent } from 'react';
 import { useState } from 'react';
-import { login } from '../services/api';
 import { useNavigate } from 'react-router-dom';
+import { Alert, Box, Button, Card, CardContent, CardHeader, Stack, TextField, Typography } from '@mui/material';
+import { login } from '../services/api';
 
 export default function Login() {
   const navigate = useNavigate();
@@ -26,21 +27,44 @@ export default function Login() {
   };
 
   return (
-    <section className="max-w-md mx-auto">
-      <h2 className="text-xl font-semibold mb-2">Вход</h2>
-      <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">Авторизуйтесь для доступа к панели.</p>
-      <form onSubmit={onSubmit} className="space-y-4 p-4 rounded border bg-white dark:bg-gray-900">
-        <div>
-          <label className="block text-xs uppercase tracking-wide mb-1">Email</label>
-          <input name="email" type="email" required className="w-full px-3 py-2 rounded border bg-transparent" />
-        </div>
-        <div>
-          <label className="block text-xs uppercase tracking-wide mb-1">Пароль</label>
-          <input name="password" type="password" required className="w-full px-3 py-2 rounded border bg-transparent" />
-        </div>
-        <button disabled={loading} className="w-full py-2 rounded bg-blue-600 text-white text-sm disabled:opacity-60">{loading ? '...' : 'Войти'}</button>
-        {error && <div className="text-sm text-red-600">{error}</div>}
-      </form>
-    </section>
+    <Box sx={{ minHeight: '70vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+      <Card sx={{ width: '100%', maxWidth: 420, borderRadius: 3, boxShadow: 3 }}>
+        <CardHeader
+          title="Вход"
+          subheader="Авторизуйтесь для доступа к панели администратора"
+        />
+        <CardContent>
+          <Box component="form" onSubmit={onSubmit} noValidate>
+            <Stack spacing={2.5}>
+              {error && <Alert severity="error" variant="outlined">{error}</Alert>}
+              <TextField
+                name="email"
+                type="email"
+                label="Email"
+                required
+                fullWidth
+                autoComplete="email"
+                size="small"
+              />
+              <TextField
+                name="password"
+                type="password"
+                label="Пароль"
+                required
+                fullWidth
+                autoComplete="current-password"
+                size="small"
+              />
+              <Button type="submit" variant="contained" fullWidth disabled={loading} size="medium">
+                {loading ? 'Вход...' : 'Войти'}
+              </Button>
+              <Typography variant="body2" color="text.secondary" align="center">
+                Нет аккаунта? <Button size="small" variant="text" onClick={() => navigate('/auth/register')}>Создать администратора</Button>
+              </Typography>
+            </Stack>
+          </Box>
+        </CardContent>
+      </Card>
+    </Box>
   );
 }

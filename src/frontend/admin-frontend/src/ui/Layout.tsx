@@ -1,18 +1,10 @@
 import { Outlet, Link, useNavigate } from 'react-router-dom';
-import { useEffect, useState } from 'react';
-
-function useTheme() {
-  const [theme, setTheme] = useState<string>(() => localStorage.getItem('admin_theme') || 'light');
-  useEffect(() => {
-    document.documentElement.setAttribute('data-theme', theme);
-    localStorage.setItem('admin_theme', theme);
-  }, [theme]);
-  return { theme, toggle: () => setTheme(t => t === 'light' ? 'dark' : 'light') };
-}
+import { AppBar, Box, Button, Container, IconButton, Toolbar, Typography } from '@mui/material';
+import LogoutIcon from '@mui/icons-material/Logout';
+import AccountCircleIcon from '@mui/icons-material/AccountCircle';
 
 export default function Layout() {
   const navigate = useNavigate();
-  const { theme, toggle } = useTheme();
   const token = localStorage.getItem('access_token');
 
   const logout = () => {
@@ -21,27 +13,47 @@ export default function Layout() {
   };
 
   return (
-    <div className="min-h-screen flex flex-col">
-      <header className="w-full border-b px-4 py-3 flex items-center gap-4 bg-white dark:bg-gray-900">
-        <h1 className="text-lg font-semibold">Панель администратора</h1>
-        <nav className="flex gap-3 text-sm">
-          <Link to="/admin" className="hover:underline">Dashboard</Link>
-          <Link to="/auth/register" className="hover:underline">Register</Link>
-          {token && <Link to="/admin/profile" className="hover:underline">Profile</Link>}
-        </nav>
-        <div className="ml-auto flex items-center gap-2">
-          <button onClick={toggle} className="px-3 py-1 rounded border text-sm">{theme === 'light' ? '🌙' : '☀️'}</button>
+    <Box sx={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', bgcolor: 'background.default' }}>
+      <AppBar position="static" color="primary" elevation={1}>
+        <Toolbar sx={{ gap: 2 }}>
+          <Typography variant="h6" component="div" sx={{ fontWeight: 600 }}>
+            Панель администратора
+          </Typography>
+          <Box sx={{ display: 'flex', gap: 1, ml: 2 }}>
+            <Button color="inherit" component={Link} to="/admin" size="small">
+              Dashboard
+            </Button>
+            <Button color="inherit" component={Link} to="/auth/register" size="small">
+              Register
+            </Button>
+            {token && (
+              <Button color="inherit" component={Link} to="/admin/profile" size="small" startIcon={<AccountCircleIcon fontSize="small" />}>
+                Profile
+              </Button>
+            )}
+          </Box>
+          <Box sx={{ flexGrow: 1 }} />
           {token ? (
-            <button onClick={logout} className="px-3 py-1 rounded border text-sm">Logout</button>
+            <IconButton color="inherit" onClick={logout} size="small">
+              <LogoutIcon fontSize="small" />
+            </IconButton>
           ) : (
-            <Link to="/admin/login" className="px-3 py-1 rounded border text-sm">Login</Link>
+            <Button color="inherit" variant="outlined" size="small" component={Link} to="/admin/login">
+              Login
+            </Button>
           )}
-        </div>
-      </header>
-      <main className="container mx-auto flex-1 w-full px-4 py-6">
+        </Toolbar>
+      </AppBar>
+      <Container maxWidth="lg" sx={{ flex: 1, py: 4 }}>
         <Outlet />
-      </main>
-      <footer className="border-t px-4 py-4 text-center text-xs text-gray-600 dark:text-gray-400">© 2025 Admin Module</footer>
-    </div>
+      </Container>
+      <Box component="footer" sx={{ borderTop: 1, borderColor: 'divider', py: 2, mt: 'auto' }}>
+        <Container maxWidth="lg">
+          <Typography variant="caption" color="text.secondary" align="center" display="block">
+            © 2025 Admin Module
+          </Typography>
+        </Container>
+      </Box>
+    </Box>
   );
 }
