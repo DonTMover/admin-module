@@ -4,29 +4,31 @@
 	# auto_https on
 }
 
-# Замените admin.example.com на ваш домен
-admin.example.com {
-	encode gzip
-	route /admin* {
-		reverse_proxy admin-module:8000
-	}
-	# Документация OpenAPI
-	route /admin/docs* {
-		reverse_proxy admin-module:8000
-	}
-	route /admin/redoc* {
-		reverse_proxy admin-module:8000
-	}
-	route /admin/openapi.json {
-		reverse_proxy admin-module:8000
-	}
-
-	# Общий reverse proxy на всё приложение (если нужно)
-	@all {
-		path *
-	}
-	reverse_proxy @all admin-module:8000
-
-	# Статус
-	respond /health 200
+# DEV configuration (no external ACME): plain HTTP on :80
+localhost:80 {
+  encode gzip
+  reverse_proxy admin-module:8000
+  respond /health 200
 }
+
+# PROD example (uncomment and adjust domain + email; requires public DNS pointing here)
+# admin.example.com {
+#   encode gzip
+#   route /admin* {
+#     reverse_proxy admin-module:8000
+#   }
+#   route /admin/docs* {
+#     reverse_proxy admin-module:8000
+#   }
+#   route /admin/redoc* {
+#     reverse_proxy admin-module:8000
+#   }
+#   route /admin/openapi.json {
+#     reverse_proxy admin-module:8000
+#   }
+#   @all {
+#     path *
+#   }
+#   reverse_proxy @all admin-module:8000
+#   respond /health 200
+# }

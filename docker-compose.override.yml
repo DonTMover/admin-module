@@ -1,5 +1,3 @@
-version: "3.9"
-
 # Override file: contains secrets / sensitive overrides.
 # For production consider NOT committing this file; instead supply
 # variables via your deployment system (Docker secrets, Swarm, K8s, Vault).
