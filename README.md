@@ -122,6 +122,45 @@ asyncio.run(seed())
 После этого получите токен через `/auth/token`.
 
 ### Далее (рекомендации)
+### Запуск в Docker
+
+Build & run (docker-compose):
+```powershell
+docker compose up --build -d
+```
+
+Сервисы:
+| Service | Port (host:container) | Description |
+|---------|-----------------------|-------------|
+| admin-module | 8000:8000 | FastAPI админка (Swagger /admin/docs) |
+| admin-postgres | 5433:5432 | PostgreSQL база данных |
+
+Проверка:
+```
+http://localhost:8000/admin/
+http://localhost:8000/admin/docs
+```
+
+Переменные окружения задаются в `docker-compose.yml` (префикс `ADMIN_`). Для продакшена вынесите секреты в `.env` и добавьте секцию `env_file:`.
+
+### Использование как отдельный контейнер
+Для интеграции в существующий стек добавьте сервис в ваш compose файл:
+```yaml
+	admin-module:
+		image: your-registry/admin-module:latest
+		environment:
+			- ADMIN_POSTGRES_HOST=db
+			- ADMIN_POSTGRES_PORT=5432
+			- ADMIN_POSTGRES_DB=admin_db
+			- ADMIN_POSTGRES_USER=admin
+			- ADMIN_POSTGRES_PASSWORD=${ADMIN_POSTGRES_PASSWORD}
+			- ADMIN_SECRET_KEY=${ADMIN_SECRET_KEY}
+		ports:
+			- "8000:8000"
+		depends_on:
+			- db
+```
+И импортируйте router при необходимости в ваше основное приложение или обращайтесь по HTTP.
 - Роли и права доступа (RBAC)
 - Пагинация и фильтрация списков
 - Логирование аудита действий
