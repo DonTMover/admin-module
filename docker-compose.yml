@@ -1,22 +1,44 @@
 version: "3.9"
 
 services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: admin-postgres
+    environment:
+      - POSTGRES_DB=admin_db
+      - POSTGRES_USER=admin
+      - POSTGRES_PASSWORD=supersecretpassword
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "admin"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    volumes:
+      - pg_data:/var/lib/postgresql/data
+    networks:
+      - admin-net
+
   admin-module:
     build:
       context: ./src
       dockerfile: Dockerfile
     container_name: admin-module
     environment:
-      - ADMIN_POSTGRES_HOST=${ADMIN_POSTGRES_HOST}
-      - ADMIN_POSTGRES_PORT=${ADMIN_POSTGRES_PORT}
-      - ADMIN_POSTGRES_DB=${ADMIN_POSTGRES_DB}
-      - ADMIN_POSTGRES_USER=${ADMIN_POSTGRES_USER}
-      - ADMIN_POSTGRES_PASSWORD=${ADMIN_POSTGRES_PASSWORD}
-      - ADMIN_SECRET_KEY=${ADMIN_SECRET_KEY}
+      - ADMIN_POSTGRES_HOST=postgres
+      - ADMIN_POSTGRES_PORT=5432
+      - ADMIN_POSTGRES_DB=admin_db
+      - ADMIN_POSTGRES_USER=admin
+      - ADMIN_POSTGRES_PASSWORD=supersecretpassword
+      - ADMIN_SECRET_KEY=CHANGE_ME_SUPER_SECRET
     ports:
       - "8000:8000"
     restart: unless-stopped
-    env_file: .env
+    depends_on:
+      postgres:
+        condition: service_healthy
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
       interval: 30s
@@ -55,3 +77,4 @@ networks:
 volumes:
   caddy_data:
   caddy_config:
+  pg_data:
