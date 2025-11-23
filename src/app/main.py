@@ -7,7 +7,17 @@ from app.models.base import Base
 import uvicorn
 
 settings = get_settings()
-app = FastAPI(title=settings.app_name, debug=settings.debug)
+app = FastAPI(
+    title=settings.app_name,
+    debug=settings.debug,
+    description="Административный модуль для управления сущностями и пользователями.",
+    version="0.1.0",
+    docs_url="/admin/docs",
+    redoc_url="/admin/redoc",
+    openapi_url="/admin/openapi.json",
+    contact={"name": "Egor"},
+    license_info={"name": "Proprietary"},
+)
 
 # Роуты админки
 app.include_router(admin_router)

@@ -44,14 +44,14 @@ pip install fastapi uvicorn[standard] SQLAlchemy asyncpg jinja2 alembic pydantic
 
 ### Запуск дев-сервера
 ```powershell
-python src/main.py
-```
-или
-```powershell
 uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
 ```
 
 После запуска админка доступна: http://localhost:8000/admin/
+
+Swagger UI: http://localhost:8000/admin/docs  
+ReDoc: http://localhost:8000/admin/redoc  
+OpenAPI JSON: http://localhost:8000/admin/openapi.json
 
 ### Миграции (Alembic)
 Для продакшена рекомендуется настроить Alembic:
