@@ -28,6 +28,10 @@ app.include_router(admin_router)
 # Статика (CSS/JS)
 app.mount("/static", StaticFiles(directory="src/app/ui/static"), name="static")
 
+@app.get("/health")
+async def health():
+    return {"status": "ok"}
+
 @app.on_event("startup")
 async def on_startup():
     # Авто создание таблиц (для прототипа; в проде используйте Alembic)

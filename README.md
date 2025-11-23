@@ -122,45 +122,71 @@ asyncio.run(seed())
 После этого получите токен через `/auth/token`.
 
 ### Далее (рекомендации)
-### Запуск в Docker
+### Запуск в Docker (без встроенной БД)
 
-Build & run (docker-compose):
+В `docker-compose.yml` присутствуют только два сервиса: `admin-module` и `caddy`. База данных предполагается внешняя ( управляемая, отдельный контейнер или кластер ).
+
+Build & run:
 ```powershell
 docker compose up --build -d
 ```
 
 Сервисы:
-| Service | Port (host:container) | Description |
-|---------|-----------------------|-------------|
+| Service | Ports | Description |
+|---------|-------|-------------|
 | admin-module | 8000:8000 | FastAPI админка (Swagger /admin/docs) |
-| admin-postgres | 5433:5432 | PostgreSQL база данных |
+| caddy | 80:80, 443:443 | Reverse proxy + HTTPS (Caddy) |
 
 Проверка:
 ```
-http://localhost:8000/admin/
-http://localhost:8000/admin/docs
+http://<ваш_домен>/admin/
+http://<ваш_домен>/admin/docs
 ```
 
-Переменные окружения задаются в `docker-compose.yml` (префикс `ADMIN_`). Для продакшена вынесите секреты в `.env` и добавьте секцию `env_file:`.
+### Caddy прокси
+`Caddyfile` содержит пример конфигурации:
+```caddy
+admin.example.com {
+  encode gzip
+  reverse_proxy admin-module:8000
+}
+```
+Замените `admin.example.com` на свой домен. Caddy автоматически выпишет сертификаты Let's Encrypt.
 
-### Использование как отдельный контейнер
-Для интеграции в существующий стек добавьте сервис в ваш compose файл:
+### Внешняя База Данных
+Укажите переменные окружения перед запуском (или в `.env`):
+| Var | Purpose |
+|-----|---------|
+| `ADMIN_POSTGRES_HOST` | Хост внешней БД |
+| `ADMIN_POSTGRES_PORT` | Порт (обычно 5432) |
+| `ADMIN_POSTGRES_DB` | Имя базы |
+| `ADMIN_POSTGRES_USER` | Пользователь |
+| `ADMIN_POSTGRES_PASSWORD` | Пароль |
+| `ADMIN_SECRET_KEY` | Секрет для JWT |
+
+Пример `.env`:
+```
+ADMIN_POSTGRES_HOST=prod-db.example.com
+ADMIN_POSTGRES_PORT=5432
+ADMIN_POSTGRES_DB=admin_db
+ADMIN_POSTGRES_USER=admin
+ADMIN_POSTGRES_PASSWORD=supersecret
+ADMIN_SECRET_KEY=CHANGE_ME_SUPER_SECRET
+```
+Добавьте в compose:
 ```yaml
-	admin-module:
-		image: your-registry/admin-module:latest
-		environment:
-			- ADMIN_POSTGRES_HOST=db
-			- ADMIN_POSTGRES_PORT=5432
-			- ADMIN_POSTGRES_DB=admin_db
-			- ADMIN_POSTGRES_USER=admin
-			- ADMIN_POSTGRES_PASSWORD=${ADMIN_POSTGRES_PASSWORD}
-			- ADMIN_SECRET_KEY=${ADMIN_SECRET_KEY}
-		ports:
-			- "8000:8000"
-		depends_on:
-			- db
+env_file: .env
 ```
-И импортируйте router при необходимости в ваше основное приложение или обращайтесь по HTTP.
+
+### Использование как отдельный контейнер (фрагмент)
+```yaml
+admin-module:
+  image: your-registry/admin-module:latest
+  env_file: .env
+  ports:
+    - "8000:8000"
+```
+Проксирование делегируйте внешнему Caddy / Nginx.
 - Роли и права доступа (RBAC)
 - Пагинация и фильтрация списков
 - Логирование аудита действий
