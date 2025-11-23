@@ -31,8 +31,7 @@ services:
       - ADMIN_POSTGRES_PORT=5432
       - ADMIN_POSTGRES_DB=admin_db
       - ADMIN_POSTGRES_USER=admin
-      - ADMIN_POSTGRES_PASSWORD=supersecretpassword
-      - ADMIN_SECRET_KEY=CHANGE_ME_SUPER_SECRET
+      # Пароль и секрет вынесены в docker-compose.override.yml
     ports:
       - "8000:8000"
     restart: unless-stopped

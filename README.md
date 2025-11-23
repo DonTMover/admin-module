@@ -103,7 +103,31 @@ asyncio.run(seed())
 ```
 
 ### Docker Compose (локально с Postgres)
-Сервисы: `postgres`, `admin-module`, `caddy`. Конфигурация окружения встроена в `docker-compose.yml`, что упрощает запуск без дополнительных файлов. (Для продакшена рекомендуется вынести секреты: Docker secrets / внешние переменные окружения / Vault.)
+Сервисы: `postgres`, `admin-module`, `caddy`.
+
+Базовые переменные (host, port, db, user) определены в `docker-compose.yml`. Чувствительные данные вынесены в `docker-compose.override.yml`:
+
+`docker-compose.yml` (фрагмент):
+```yaml
+	admin-module:
+		environment:
+			- ADMIN_POSTGRES_HOST=postgres
+			- ADMIN_POSTGRES_PORT=5432
+			- ADMIN_POSTGRES_DB=admin_db
+			- ADMIN_POSTGRES_USER=admin
+			# Пароль и секрет вынесены в docker-compose.override.yml
+```
+
+`docker-compose.override.yml`:
+```yaml
+services:
+	admin-module:
+		environment:
+			- ADMIN_POSTGRES_PASSWORD=supersecretpassword
+			- ADMIN_SECRET_KEY=CHANGE_ME_SUPER_SECRET
+```
+
+Compose автоматически подхватит override файл при запуске. Для продакшена рекомендуется НЕ коммитить файл с секретами, а передавать их через внешние механизмы (Docker secrets, Swarm/K8s config/secrets, Vault, переменные окружения CI/CD).
 
 Запуск:
 ```powershell
