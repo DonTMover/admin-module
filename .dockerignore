@@ -1,0 +1,46 @@
+# Python artifacts
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.sqlite
+
+# Virtual environments
+.venv/
+venv/
+.env
+
+# Node / frontend artifacts
+node_modules/
+**/node_modules/
+.dist/
+dist/
+frontend/admin-frontend/dist/
+frontend/admin-frontend/.vite/
+
+# Logs
+*.log
+
+# VCS
+.git/
+.gitignore
+
+# IDE/editor
+.vscode/
+.idea/
+
+# Local build caches
+*.egg-info/
+build/
+.eggs/
+
+# Docker
+Dockerfile.old
+
+# Tests (optional exclude from prod context)
+# Uncomment if you want to skip copying tests:
+# src/tests/
+
+# Misc
+Thumbs.db
+.DS_Store
