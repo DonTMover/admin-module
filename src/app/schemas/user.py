@@ -14,5 +14,6 @@ class UserUpdate(BaseModel):
 class UserRead(UserBase):
     id: int
 
+    # Pydantic v2: use from_attributes instead of orm_mode
     class Config:
-        orm_mode = True
+        from_attributes = True

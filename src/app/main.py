@@ -26,7 +26,8 @@ app.include_router(auth_router)
 app.include_router(users_router)
 app.include_router(admin_router)
 # Статика (CSS/JS)
-app.mount("/static", StaticFiles(directory="src/app/ui/static"), name="static")
+# Correct relative path: running from 'src' so omit leading 'src/'
+app.mount("/static", StaticFiles(directory="app/ui/static"), name="static")
 
 @app.get("/health")
 async def health():
