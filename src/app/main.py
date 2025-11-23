@@ -1,6 +1,8 @@
 from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 from app.api.routes.admin import router as admin_router
+from app.api.routes.auth import router as auth_router
+from app.api.routes.users import router as users_router
 from app.core.config import get_settings
 from app.core.db import engine
 from app.models.base import Base
@@ -19,7 +21,9 @@ app = FastAPI(
     license_info={"name": "Proprietary"},
 )
 
-# Роуты админки
+# Роуты
+app.include_router(auth_router)
+app.include_router(users_router)
 app.include_router(admin_router)
 # Статика (CSS/JS)
 app.mount("/static", StaticFiles(directory="src/app/ui/static"), name="static")

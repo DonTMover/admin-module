@@ -49,6 +49,18 @@ uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
 
 После запуска админка доступна: http://localhost:8000/admin/
 
+### Эндпоинты API
+| Назначение | Метод | Путь |
+|------------|-------|------|
+| Получить токен (OAuth2 Password) | POST | `/auth/token` |
+| Список пользователей | GET | `/admin/users/` |
+| Получить пользователя | GET | `/admin/users/{id}` |
+| Создать пользователя | POST | `/admin/users/` |
+| Обновить пользователя | PUT | `/admin/users/{id}` |
+| Удалить пользователя | DELETE | `/admin/users/{id}` |
+| Админ дашборд (HTML) | GET | `/admin/` |
+
+### Документация OpenAPI
 Swagger UI: http://localhost:8000/admin/docs  
 ReDoc: http://localhost:8000/admin/redoc  
 OpenAPI JSON: http://localhost:8000/admin/openapi.json
@@ -81,9 +93,37 @@ from app.api.routes.admin import router as admin_router
 app.include_router(admin_router)
 ```
 
-### Далее
-- Добавить авторизацию (JWT / OAuth2)
-- Расширить модели
-- Реализовать CRUD интерфейсы
-- Подключить систему ролей
+### Авторизация
+Используется JWT Bearer. Получение токена:
+```powershell
+curl -X POST -d "username=<email>&password=<password>" http://localhost:8000/auth/token
+```
+Ответ:
+```json
+{"access_token": "<JWT>", "token_type": "bearer"}
+```
+Передавайте токен в заголовке:
+`Authorization: Bearer <JWT>`
+
+### Создание первого пользователя
+Так как эндпоинты CRUD требуют авторизации, создайте первого пользователя вручную (скрипт или временный хук) либо добавьте seed:
+Пример Python seed (временно):
+```python
+from app.core.db import SessionLocal
+from app.services.user_service import create_user
+import asyncio
+
+async def seed():
+	async with SessionLocal() as db:
+		await create_user(db, email="admin@example.com", full_name="Admin", password="admin123")
+
+asyncio.run(seed())
+```
+После этого получите токен через `/auth/token`.
+
+### Далее (рекомендации)
+- Роли и права доступа (RBAC)
+- Пагинация и фильтрация списков
+- Логирование аудита действий
+- Alembic миграции вместо auto-create
 

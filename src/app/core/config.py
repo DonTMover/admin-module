@@ -11,6 +11,9 @@ class Settings(BaseSettings):
     postgres_db: str = Field(default="admin_db")
     postgres_user: str = Field(default="admin")
     postgres_password: str = Field(default="admin")
+    secret_key: str = Field(default="CHANGE_ME_SUPER_SECRET")
+    jwt_algorithm: str = Field(default="HS256")
+    access_token_expire_minutes: int = Field(default=60)
 
     @property
     def database_url_async(self) -> str:
