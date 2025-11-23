@@ -65,6 +65,10 @@ Swagger UI: http://localhost:8000/admin/docs
 ReDoc: http://localhost:8000/admin/redoc  
 OpenAPI JSON: http://localhost:8000/admin/openapi.json
 
+### Healthcheck
+Приложение предоставляет эндпоинт `GET /health` возвращающий `{"status": "ok"}`.
+Docker healthcheck (см. `docker-compose.yml`) периодически вызывает этот эндпоинт внутри контейнера.
+
 ### Миграции (Alembic)
 Для продакшена рекомендуется настроить Alembic:
 ```powershell
