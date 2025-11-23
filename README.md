@@ -183,6 +183,16 @@ admin-module:
 		- "8000:8000"
 ```
 
+### Frontend & Tailwind
+Добавлена полноценная цепочка сборки Tailwind:
+1. Исходник `app/ui/static/css/tailwind-input.css` с `@tailwind` директивами и кастомными компонентами.
+2. Конфиг `tailwind.config.js` (путь к шаблонам, палитра `brand`).
+3. PostCSS конфиг `postcss.config.js` + зависимости (`tailwindcss`, `autoprefixer`).
+4. Мультистейдж Docker собирает минифицированный `tailwind.css` и копирует в финальный образ.
+Существующие `styles.css`, `theme.css`, `animations.css` остаются для переменных и анимаций.
+
+401 ответы на маршрутах `/admin/*` теперь автоматически рендерят анимированный шаблон `not_authenticated.html` через кастомный `HTTPException` handler.
+
 ### План дальнейшего развития
 - RBAC / роли
 - Пагинация, сортировка, фильтры
@@ -190,6 +200,8 @@ admin-module:
 - Полные Alembic миграции (отказ от auto-create + seed)
 - Observability (metrics / tracing)
 - Вынесение секретов из compose (Docker secrets / Vault) для продакшена
+- Улучшение accessibility (контраст, aria-атрибуты)
+- CSP / security заголовки через Caddy
 
 ---
 Локальная автоподключаемость к БД реализована через фоновые повторные попытки — упрощает разработку и последовательный старт контейнеров.

@@ -1,0 +1,13 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Custom layer extensions */
+@layer components {
+  .btn-primary {
+    @apply inline-flex items-center justify-center rounded-md bg-brand-600 px-4 py-2 text-white font-medium shadow-sm hover:bg-brand-500 transition;
+  }
+  .card {
+    @apply rounded-lg border border-gray-200 bg-white shadow-sm p-4 dark:bg-gray-800 dark:border-gray-700;
+  }
+}
