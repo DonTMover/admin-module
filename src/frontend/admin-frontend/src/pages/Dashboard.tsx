@@ -1,45 +1,94 @@
 import { useQuery } from '@tanstack/react-query';
 import { fetchUsers } from '../services/api';
+import {
+  Alert,
+  Card,
+  CardContent,
+  CardHeader,
+  Chip,
+  Paper,
+  Skeleton,
+  Stack,
+  Table,
+  TableBody,
+  TableCell,
+  TableContainer,
+  TableHead,
+  TableRow,
+  Typography,
+} from '@mui/material';
 
 export default function Dashboard() {
   const { data: users, isLoading, error } = useQuery({ queryKey: ['users'], queryFn: fetchUsers });
+  const total = users?.length ?? 0;
 
   return (
-    <section className="grid md:grid-cols-3 gap-6">
-      <div className="md:col-span-1 space-y-2">
-        <h2 className="text-xl font-semibold">Пользователи</h2>
-        <p className="text-sm text-gray-600 dark:text-gray-400">Список зарегистрированных пользователей приложения.</p>
-        <div className="p-4 rounded border bg-white dark:bg-gray-900">
-          <strong>Всего пользователей:</strong> {users?.length ?? 0}
-        </div>
-      </div>
-      <div className="md:col-span-2">
-        {isLoading && <p className="text-sm">Загрузка...</p>}
-        {error && <p className="text-sm text-red-600">Ошибка загрузки</p>}
-        <div className="overflow-x-auto mt-2">
-          <table className="min-w-full text-sm border">
-            <thead className="bg-gray-100 dark:bg-gray-800">
-              <tr>
-                <th className="p-2 border">ID</th>
-                <th className="p-2 border">Email</th>
-                <th className="p-2 border">Имя</th>
-              </tr>
-            </thead>
-            <tbody>
-              {(users || []).map(u => (
-                <tr key={u.id} className="odd:bg-gray-50 dark:odd:bg-gray-800">
-                  <td className="p-2 border">{u.id}</td>
-                  <td className="p-2 border">{u.email}</td>
-                  <td className="p-2 border">{u.full_name || ''}</td>
-                </tr>
-              ))}
-              {!isLoading && users?.length === 0 && (
-                <tr><td colSpan={3} className="p-2 text-center text-gray-500">Нет пользователей.</td></tr>
-              )}
-            </tbody>
-          </table>
-        </div>
-      </div>
-    </section>
+    <Stack spacing={3}>
+      <Typography variant="h5" fontWeight={600}>
+        Обзор пользователей
+      </Typography>
+
+      <Stack direction={{ xs: 'column', md: 'row' }} spacing={3} alignItems="stretch">
+        <Card sx={{ flexBasis: { xs: '100%', md: '30%' }, borderRadius: 3, boxShadow: 2 }}>
+          <CardHeader title="Пользователи" subheader="Зарегистрированные учётные записи" />
+          <CardContent>
+            {isLoading ? (
+              <Skeleton variant="rounded" width={120} height={32} />
+            ) : (
+              <Stack direction="row" alignItems="baseline" spacing={1}>
+                <Typography variant="h4" fontWeight={600}>
+                  {total}
+                </Typography>
+                <Chip label={total === 0 ? 'Нет пользователей' : 'Активно'} size="small" color={total === 0 ? 'default' : 'primary'} />
+              </Stack>
+            )}
+          </CardContent>
+        </Card>
+
+        <Paper sx={{ flexGrow: 1, p: 2.5, borderRadius: 3, boxShadow: 1 }}>
+          <Typography variant="subtitle1" fontWeight={500} gutterBottom>
+            Список пользователей
+          </Typography>
+          {error && <Alert severity="error">Ошибка загрузки списка пользователей</Alert>}
+          {isLoading ? (
+            <Stack spacing={1.5} mt={1.5}>
+              <Skeleton variant="rectangular" height={32} />
+              <Skeleton variant="rectangular" height={32} />
+              <Skeleton variant="rectangular" height={32} />
+            </Stack>
+          ) : (
+            <TableContainer sx={{ mt: 1.5, maxHeight: 360 }}>
+              <Table size="small" stickyHeader>
+                <TableHead>
+                  <TableRow>
+                    <TableCell>ID</TableCell>
+                    <TableCell>Email</TableCell>
+                    <TableCell>Имя</TableCell>
+                  </TableRow>
+                </TableHead>
+                <TableBody>
+                  {(users || []).map((u) => (
+                    <TableRow key={u.id} hover>
+                      <TableCell>{u.id}</TableCell>
+                      <TableCell>{u.email}</TableCell>
+                      <TableCell>{u.full_name || '—'}</TableCell>
+                    </TableRow>
+                  ))}
+                  {!isLoading && total === 0 && (
+                    <TableRow>
+                      <TableCell colSpan={3} align="center">
+                        <Typography variant="body2" color="text.secondary">
+                          Нет пользователей.
+                        </Typography>
+                      </TableCell>
+                    </TableRow>
+                  )}
+                </TableBody>
+              </Table>
+            </TableContainer>
+          )}
+        </Paper>
+      </Stack>
+    </Stack>
   );
 }
