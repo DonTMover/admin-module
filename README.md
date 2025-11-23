@@ -287,3 +287,7 @@ alembic upgrade head
 ---
 Локальная автоподключаемость к БД реализована через фоновые повторные попытки — упрощает разработку и последовательный старт контейнеров.
 
+### License
+
+Proprietary, all rights reserved. See `LICENSE` for details.
+
