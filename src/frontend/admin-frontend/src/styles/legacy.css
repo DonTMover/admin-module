@@ -1,0 +1,11 @@
+/* Legacy UI styles & animations migrated from Jinja templates */
+@keyframes fadeIn { from { opacity:0; transform:translateY(4px);} to { opacity:1; transform:translateY(0);} }
+.fade-in, .animate-fade-in { animation: fadeIn .4s ease; }
+@keyframes pulseAccent { 0%,100% { box-shadow:0 0 0 0 rgba(37,99,235,.5);} 50% { box-shadow:0 0 0 8px rgba(37,99,235,0);} }
+.pulse-accent { animation: pulseAccent 2.8s infinite; }
+
+/* Utility port of old .card (now mostly Tailwind) */
+.card-legacy { @apply rounded-lg border border-gray-200 bg-white shadow-sm p-4 dark:bg-gray-800 dark:border-gray-700; }
+
+/* Button variant similar to old btn-primary */
+.btn-primary { @apply inline-flex items-center justify-center rounded-md bg-brand-600 px-4 py-2 text-white font-medium shadow-sm hover:bg-brand-500 transition; }
