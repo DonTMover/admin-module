@@ -1,0 +1,23 @@
+:root {
+  --transition: 240ms cubic-bezier(.4,0,.2,1);
+}
+html[data-theme='light'] {
+  --bg: #f8fafc;
+  --panel:#ffffff;
+  --border:#e2e8f0;
+  --accent:#2563eb;
+  --accent-hover:#1d4ed8;
+  --text:#1f2937;
+  --muted:#64748b;
+}
+html[data-theme='dark'] {
+  --bg:#0f172a;
+  --panel:#1e293b;
+  --border:#334155;
+  --accent:#3b82f6;
+  --accent-hover:#1d4ed8;
+  --text:#f1f5f9;
+  --muted:#94a3b8;
+}
+body { transition: background-color var(--transition), color var(--transition); }
+.transition-theme { transition: background-color var(--transition), color var(--transition), border-color var(--transition); }

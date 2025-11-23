@@ -1,19 +1,31 @@
 {% extends 'base.html' %}
 {% block content %}
-<h2>Пользователи</h2>
-<table>
-  <thead>
-    <tr><th>ID</th><th>Email</th><th>Имя</th></tr>
-  </thead>
-  <tbody>
-    {% for user in users %}
-    <tr>
-      <td>{{ user.id }}</td>
-      <td>{{ user.email }}</td>
-      <td>{{ user.full_name or '' }}</td>
-    </tr>
-    {% endfor %}
-  </tbody>
-</table>
-{% if not users %}<p>Нет пользователей.</p>{% endif %}
+  <section class="grid" style="grid-template-columns:1fr 2fr;align-items:start;">
+    <div>
+      <h2 style="margin-top:0;">Пользователи</h2>
+      <p class="muted">Список зарегистрированных пользователей приложения.</p>
+      <div class="card" style="margin-top:1rem;">
+        <strong>Всего пользователей:</strong> {{ users|length }}
+      </div>
+    </div>
+    <div>
+      <div class="table-wrapper">
+        <table class="data-table">
+          <thead>
+            <tr><th>ID</th><th>Email</th><th>Имя</th></tr>
+          </thead>
+          <tbody>
+          {% for user in users %}
+            <tr>
+              <td>{{ user.id }}</td>
+              <td>{{ user.email }}</td>
+              <td>{{ user.full_name or '' }}</td>
+            </tr>
+          {% endfor %}
+          </tbody>
+        </table>
+        {% if not users %}<p class="muted" style="margin-top:.75rem;">Нет пользователей.</p>{% endif %}
+      </div>
+    </div>
+  </section>
 {% endblock %}
