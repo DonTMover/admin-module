@@ -5,6 +5,7 @@ import Login from '../pages/Login';
 import Register from '../pages/Register';
 import Profile from '../pages/Profile';
 import NotAuthenticated from '../pages/NotAuthenticated';
+import MigrationsPage from '../pages/Migrations';
 
 // Simple auth guard reading token from localStorage
 const isAuthed = () => Boolean(localStorage.getItem('access_token'));
@@ -16,6 +17,7 @@ export default function AppRoutes() {
       <Route element={<Layout />}>        
         <Route path="/admin" element={isAuthed() ? <Dashboard /> : <NotAuthenticated />} />
         <Route path="/admin/profile" element={isAuthed() ? <Profile /> : <NotAuthenticated />} />
+        <Route path="/admin/migrations" element={isAuthed() ? <MigrationsPage /> : <NotAuthenticated />} />
         <Route path="/admin/login" element={<Login />} />
         <Route path="/auth/register" element={<Register />} />
         <Route path="*" element={<NotAuthenticated />} />

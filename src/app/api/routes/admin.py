@@ -1,10 +1,14 @@
-from fastapi import APIRouter, Depends, Request
-from fastapi.responses import FileResponse, RedirectResponse
+from fastapi import APIRouter, Depends, Request, HTTPException
+from fastapi.responses import FileResponse, RedirectResponse, JSONResponse
 from pathlib import Path
 from app.core.db import get_db
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.services.user_service import list_users
-from app.core.security import get_current_user
+from app.core.security import get_current_user, ensure_is_admin
+
+from alembic import command
+from alembic.config import Config
+import os
 
 router = APIRouter(prefix="/admin", tags=["admin"])
 SPA_INDEX = Path("app/ui/static/spa/index.html")
@@ -35,3 +39,31 @@ async def login_page(request: Request):
     if SPA_INDEX.exists():
         return FileResponse(SPA_INDEX)
     return RedirectResponse("/", status_code=302)
+
+
+@router.get("/migrations/status", response_class=JSONResponse)
+async def migrations_status(current_user=Depends(get_current_user)):
+    ensure_is_admin(current_user)
+    # For now just report that endpoint is available; can be extended
+    # later to read from alembic_version table.
+    return {"status": "ok"}
+
+
+def _get_alembic_config() -> Config:
+    config_path = os.getenv("ALEMBIC_INI", "alembic.ini")
+    if not os.path.exists(config_path):
+        raise FileNotFoundError(f"Alembic config not found at {config_path}")
+    return Config(config_path)
+
+
+@router.post("/migrations/upgrade", response_class=JSONResponse)
+async def run_migrations_upgrade_head(current_user=Depends(get_current_user)):
+    ensure_is_admin(current_user)
+    try:
+        cfg = _get_alembic_config()
+        command.upgrade(cfg, "head")
+    except FileNotFoundError as e:
+        raise HTTPException(status_code=500, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Alembic upgrade failed: {e}")
+    return {"status": "ok", "message": "Migrations upgraded to head"}

@@ -45,4 +45,14 @@ export async function fetchCurrentUser(): Promise<User | null> {
   }
 }
 
+export async function migrationsStatus() {
+  const { data } = await api.get<{ status: string }>('/admin/migrations/status');
+  return data;
+}
+
+export async function migrationsUpgradeHead() {
+  const { data } = await api.post<{ status: string; message: string }>('/admin/migrations/upgrade');
+  return data;
+}
+
 export default api;
