@@ -1,7 +1,7 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 import asyncio
 import logging
-from fastapi.responses import RedirectResponse
+from fastapi.responses import RedirectResponse, HTMLResponse
 from fastapi.staticfiles import StaticFiles
 from app.api.routes.admin import router as admin_router
 from app.api.routes.auth import router as auth_router
@@ -9,6 +9,10 @@ from app.api.routes.users import router as users_router
 from app.core.config import get_settings
 from app.core.db import engine
 from app.core.db_init import background_db_initializer, db_initialized, db_last_error, db_attempts, try_initialize
+from fastapi.exceptions import HTTPException
+from fastapi import status
+from pathlib import Path
+from fastapi.templating import Jinja2Templates
 from app.models.base import Base
 import uvicorn
 
@@ -29,6 +33,27 @@ app = FastAPI(
 app.include_router(auth_router)
 app.include_router(users_router)
 app.include_router(admin_router)
+_tpl_candidates = [Path("app/ui/templates"), Path("src/app/ui/templates")]
+for _c in _tpl_candidates:
+    if _c.exists():
+        _templates = Jinja2Templates(directory=str(_c))
+        break
+else:
+    _templates = Jinja2Templates(directory="app/ui/templates")
+
+@app.exception_handler(HTTPException)
+async def custom_http_exception_handler(request: Request, exc: HTTPException):
+    # Intercept 401 on /admin/* and render friendly page
+    if exc.status_code == status.HTTP_401_UNAUTHORIZED and request.url.path.startswith("/admin"):
+        return _templates.TemplateResponse(
+            "admin/not_authenticated.html",
+            {"request": request, "current_user": None},
+            status_code=exc.status_code,
+        )
+    return HTMLResponse(
+        content=f"<h1>{exc.status_code}</h1><p>{exc.detail}</p>",
+        status_code=exc.status_code,
+    )
 # Статика (CSS/JS)
 # Correct relative path: running from 'src' so omit leading 'src/'
 app.mount("/static", StaticFiles(directory="app/ui/static"), name="static")
