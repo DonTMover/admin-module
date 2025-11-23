@@ -15,11 +15,11 @@ export default function Layout() {
   return (
     <Box sx={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', bgcolor: 'background.default' }}>
       <AppBar position="static" color="primary" elevation={1}>
-        <Toolbar sx={{ gap: 2 }}>
+        <Toolbar sx={{ gap: 2, px: { xs: 2, sm: 3, md: 4 } }}>
           <Typography variant="h6" component="div" sx={{ fontWeight: 600 }}>
             Панель администратора
           </Typography>
-          <Box sx={{ display: 'flex', gap: 1, ml: 2 }}>
+          <Box sx={{ display: 'flex', gap: 1, ml: { xs: 1, sm: 2 } }}>
             <Button color="inherit" component={Link} to="/admin" size="small">
               Dashboard
             </Button>
@@ -44,7 +44,7 @@ export default function Layout() {
           )}
         </Toolbar>
       </AppBar>
-      <Container maxWidth="lg" sx={{ flex: 1, py: 4 }}>
+      <Container maxWidth="lg" sx={{ flex: 1, py: 4, width: '100%' }}>
         <Outlet />
       </Container>
       <Box component="footer" sx={{ borderTop: 1, borderColor: 'divider', py: 2, mt: 'auto' }}>
