@@ -13,7 +13,8 @@ COPY src/app ./app
 # --- Tailwind (legacy Jinja CSS) build stage ---
 FROM node:20-alpine AS tailwind-css
 WORKDIR /build-css
-COPY tailwind.config.js postcss.config.js ./
+# Copy Tailwind & PostCSS configs located under src/
+COPY src/tailwind.config.js src/postcss.config.js ./
 COPY src/package.json ./package.json
 COPY src/app/ui/static/css ./css
 RUN npm install --no-audit --no-fund && \
