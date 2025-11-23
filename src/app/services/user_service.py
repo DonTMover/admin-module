@@ -3,6 +3,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.exc import IntegrityError
 from app.models.user import User
 from app.core.security import hash_password, verify_password
+from datetime import datetime, timezone
 from typing import Optional
 
 async def list_users(db: AsyncSession) -> list[User]:
@@ -47,4 +48,9 @@ async def authenticate_user(db: AsyncSession, email: str, password: str) -> Opti
         return None
     if not verify_password(password, user.password_hash):
         return None
+    # Update login stats
+    user.login_count = (user.login_count or 0) + 1
+    user.last_login = datetime.now(timezone.utc)
+    await db.commit()
+    await db.refresh(user)
     return user
