@@ -1,0 +1,7 @@
+body { font-family: system-ui, Arial, sans-serif; margin:0; padding:0; }
+header { background:#1f2937; color:#fff; padding:1rem; }
+nav a { color:#fff; margin-right:1rem; text-decoration:none; }
+main { padding:1rem; }
+table { border-collapse: collapse; width:100%; }
+th, td { border:1px solid #ddd; padding:0.5rem; }
+th { background:#f3f4f6; }

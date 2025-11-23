@@ -7,4 +7,15 @@ authors = [
 description = "Add your description here"
 readme = "README.md"
 requires-python = ">=3.11"
-dependencies = []
+dependencies = [
+    "fastapi",
+    "uvicorn[standard]",
+    "SQLAlchemy>=2.0",
+    "asyncpg",
+    "jinja2",
+    "alembic",
+    "pydantic>=2.0"
+]
+
+[project.optional-dependencies]
+dev = ["pytest", "httpx", "ruff"]
