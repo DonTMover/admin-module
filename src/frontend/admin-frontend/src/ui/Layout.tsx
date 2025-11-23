@@ -35,9 +35,14 @@ export default function Layout() {
               Register
             </Button>
             {token && (
-              <Button color="inherit" component={Link} to="/admin/profile" size="small" startIcon={<AccountCircleIcon fontSize="small" />}>
-                Profile
-              </Button>
+              <>
+                <Button color="inherit" component={Link} to="/admin/profile" size="small" startIcon={<AccountCircleIcon fontSize="small" />}>
+                  Profile
+                </Button>
+                <Button color="inherit" component={Link} to="/admin/migrations" size="small">
+                  Migrations
+                </Button>
+              </>
             )}
           </Box>
           <Box sx={{ flexGrow: 1 }} />
