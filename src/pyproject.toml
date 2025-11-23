@@ -10,14 +10,16 @@ requires-python = ">=3.11"
 dependencies = [
     "fastapi",
     "uvicorn[standard]",
-    "SQLAlchemy>=2.0",
+    "sqlalchemy>=2.0",
     "asyncpg",
     "jinja2",
     "alembic",
     "pydantic>=2.0",
+    "pydantic-settings>=2.0",
+    "email-validator",
     "passlib[bcrypt]",
     "python-jose[cryptography]",
-    "python-multipart"
+    "python-multipart",
 ]
 
 [project.optional-dependencies]
