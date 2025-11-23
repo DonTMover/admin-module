@@ -1,0 +1,13 @@
+{% extends 'base.html' %}
+{% block content %}
+<div class="fade-in" style="max-width:560px;margin:4rem auto;text-align:center;">
+  <div style="font-size:4rem;line-height:1;" class="pulse-accent">🔒</div>
+  <h2 class="text-2xl font-semibold mt-4">Не авторизован</h2>
+  <p class="muted mt-2">Для доступа к панели войдите в систему. Если аккаунта ещё нет — зарегистрируйтесь.</p>
+  <div style="margin-top:1.5rem;display:flex;gap:.75rem;justify-content:center;flex-wrap:wrap;">
+    <a href="/admin/login" class="btn" style="padding:.6rem 1.1rem;border-radius:6px;">Войти</a>
+    <a href="/auth/register" class="btn-outline" style="padding:.6rem 1.1rem;border-radius:6px;">Регистрация</a>
+  </div>
+  <div style="margin-top:2rem;" class="muted text-sm">Ошибка 401 • Доступ запрещён</div>
+</div>
+{% endblock %}
