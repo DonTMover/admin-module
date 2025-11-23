@@ -10,8 +10,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends curl \
 FROM node:20-alpine AS assets
 WORKDIR /build
 COPY app/ui/static/css ./css
-COPY tailwind.config.js postcss.config.js package.json package-lock.json ./
-RUN npm ci && \
+COPY tailwind.config.js postcss.config.js package.json ./
+RUN npm install --no-audit --no-fund && \
     mkdir -p css/build && \
     npx tailwindcss -c tailwind.config.js -i ./css/tailwind-input.css -o ./css/build/tailwind.css --minify
 
