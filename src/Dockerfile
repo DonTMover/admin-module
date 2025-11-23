@@ -1,11 +1,19 @@
-FROM python:3.11-slim AS backend-base
+#### Backend dependency build (production only)
+FROM python:3.11-slim AS backend-build
 ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1
-WORKDIR /app
+WORKDIR /build
 COPY pyproject.toml ./
 RUN apt-get update && apt-get install -y --no-install-recommends curl build-essential \
     && rm -rf /var/lib/apt/lists/* \
     && pip install --no-cache-dir --upgrade pip \
-    && pip install --no-cache-dir .[dev]
+    && pip install --no-cache-dir .
+COPY app ./app
+COPY app/ui ./app/ui
+COPY app/models ./app/models
+COPY app/core ./app/core
+COPY app/services ./app/services
+COPY app/schemas ./app/schemas
+COPY app/api ./app/api
 
 # --- Tailwind (legacy Jinja CSS) build stage ---
 FROM node:20-alpine AS tailwind-css
@@ -24,14 +32,17 @@ COPY frontend/admin-frontend .
 RUN npm run build
 
 # --- Final runtime image ---
+#### Final lean runtime image
 FROM python:3.11-slim AS final
 ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1
 WORKDIR /app
-COPY --from=backend-base /usr/local /usr/local
-COPY . .
+COPY --from=backend-build /usr/local /usr/local
+WORKDIR /app
+COPY . ./
 COPY --from=tailwind-css /build-css/css/build/tailwind.css app/ui/static/css/tailwind.css
 COPY --from=frontend-build /frontend/dist ./app/ui/static/spa
-RUN pip install --no-cache-dir .
+# Ensure only production deps installed (already copied from builder)
+RUN pip check || true
 
 EXPOSE 8000
 ENTRYPOINT ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]

@@ -245,6 +245,28 @@ API слой: `src/services/api.ts` (Axios + интерцептор Authorizatio
 - CSP (script-src 'self') + отключение inline скриптов.
 - Регулярная валидация exp / refresh токенов.
 
+### Оптимизация зависимостей и Docker multi-stage
+В продакшн зависимостях исключён `alembic` (перенесён в `dev` extras). Runtime теперь включает только необходимые пакеты: FastAPI, SQLAlchemy, asyncpg, Jinja2, Pydantic(+settings), email-validator, passlib, python-jose, python-multipart.
+
+Docker multi-stage:
+1. `backend-build` – устанавливает продакшн зависимости и собирает Python код.
+2. `tailwind-css` – генерирует минифицированный `tailwind.css` для Jinja fallback.
+3. `frontend-build` – собирает React SPA (Vite → `dist`).
+4. `final` – минимальный образ: копируются site-packages, backend код, CSS и SPA статические файлы.
+
+Сборка:
+```powershell
+docker compose build admin-module
+docker compose up -d
+```
+
+При необходимости миграций установите dev extras локально:
+```powershell
+pip install .[dev]
+alembic revision --autogenerate -m "init"
+alembic upgrade head
+```
+
 Быстрая проверка:
 1. Зарегистрируйтесь `/auth/register`.
 2. Войдите `/admin/login`.
