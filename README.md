@@ -252,12 +252,25 @@ Docker multi-stage:
 1. `backend-build` – устанавливает продакшн зависимости и собирает Python код.
 2. `tailwind-css` – генерирует минифицированный `tailwind.css` для Jinja fallback.
 3. `frontend-build` – собирает React SPA (Vite → `dist`).
-4. `final` – минимальный образ: копируются site-packages, backend код, CSS и SPA статические файлы.
+4. `final` – минимальный образ: копируются site-packages, backend код, CSS и SPA, создаётся **непривилегированный пользователь** `appuser`.
+
+Дополнительные оптимизации:
+- `.dockerignore` исключает `.venv`, `node_modules`, артефакты сборки → меньший контекст.
+- Установка зависимостей после копирования только `pyproject.toml` повышает кешируемость слоя.
+- В продакшн стадии Node использует `--production` для минимизации зависимостей.
+- Переход на non-root пользователя уменьшает поверхность атаки.
+- Разделение CSS и фронтенда ускоряет инкрементальные изменения (изменение React кода не пересобирает Python deps).
 
 Сборка:
 ```powershell
 docker compose build admin-module
 docker compose up -d
+```
+
+Многоархитектурная сборка (пример с buildx):
+```powershell
+docker buildx create --name multi --use
+docker buildx build --platform linux/amd64,linux/arm64 -t yourrepo/admin-module:latest --push ./src
 ```
 
 При необходимости миграций установите dev extras локально:
