@@ -33,12 +33,11 @@ ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1
 WORKDIR /app
 COPY --from=backend-build /usr/local /usr/local
 COPY app ./app
-COPY src/main.py ./main.py
-COPY Caddyfile ./Caddyfile
-COPY postgres-init ./postgres-init
+# Removed copying of files outside build context (Caddyfile, postgres-init) and unused src/main.py.
 COPY --from=tailwind-css /build-css/css/build/tailwind.css app/ui/static/css/tailwind.css
 COPY --from=frontend-build /frontend/dist ./app/ui/static/spa
-# Create non-root user
+ # Dependencies already provided via /usr/local from backend-build; no need to pip install again.
+ # Create non-root user and adjust ownership.
 RUN useradd -r -u 1001 appuser && chown -R appuser:appuser /app
 USER appuser
 
