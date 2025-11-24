@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Alert, Box, Button, Card, CardContent, CardHeader, Dialog, DialogActions, DialogContent, DialogTitle, FormControl, InputLabel, MenuItem, Select, Skeleton, Stack, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, TextField, Typography, Pagination, IconButton } from '@mui/material';
+import { Alert, Box, Button, Card, CardContent, CardHeader, Dialog, DialogActions, DialogContent, DialogTitle, FormControl, InputLabel, MenuItem, Select, Skeleton, Stack, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, TextField, Typography, Pagination, IconButton, Tooltip } from '@mui/material';
 import type { SelectChangeEvent } from '@mui/material';
 import { activateDbConnection, createDbConnection, createDbTable, deleteDbRow, dropDbTable, fetchDbConnections, fetchDbTableMeta, fetchDbTables, fetchDbTableRows, insertDbRow, testDbConnection, updateDbRow } from '../services/api';
 import type { CreateTablePayload, DbConnectionInfo, DbTable, DbTableRowsResponse, DbTableMeta, NewTableColumn } from '../services/api';
@@ -34,6 +34,7 @@ export default function DbBrowser() {
   ]);
   const [tableToDrop, setTableToDrop] = useState<DbTable | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [markdownPreview, setMarkdownPreview] = useState<string>('');
   const queryClient = useQueryClient();
 
   const { data: tables, isLoading: loadingTables, error: tablesError } = useQuery({
@@ -364,7 +365,16 @@ export default function DbBrowser() {
                   {meta.columns.map((col) => (
                     <Typography key={col.name} variant="caption" color="text.secondary">
                       {col.name} — {col.data_type}
-                      {col.is_primary_key && ' (PK)'}
+                      {col.is_primary_key && (
+                        <Tooltip
+                          title="PK (Primary Key) — уникальный идентификатор строки в таблице"
+                          placement="top"
+                        >
+                          <Box component="span" sx={{ ml: 0.5, cursor: 'help', textDecoration: 'dotted underline' }}>
+                            (PK)
+                          </Box>
+                        </Tooltip>
+                      )}
                       {col.is_unique && !col.is_primary_key && ' (UNIQUE)'}
                       {!col.is_nullable && ' · NOT NULL'}
                     </Typography>
@@ -482,10 +492,29 @@ export default function DbBrowser() {
                   fullWidth
                   disabled={col.is_primary_key && !!editRow}
                   value={formValues[col.name] ?? ''}
-                  onChange={(event: React.ChangeEvent<HTMLInputElement>) => handleFormChange(col.name, event.target.value)}
+                  onChange={(event: React.ChangeEvent<HTMLInputElement>) => {
+                    const value = event.target.value;
+                    handleFormChange(col.name, value);
+                    if (col.data_type.toLowerCase().includes('text')) {
+                      setMarkdownPreview(value);
+                    }
+                  }}
+                  helperText={col.data_type.toLowerCase().includes('text') ? 'Поддерживается Markdown: заголовки, списки, ссылки и т.д.' : undefined}
+                  multiline={col.data_type.toLowerCase().includes('text')}
+                  minRows={col.data_type.toLowerCase().includes('text') ? 3 : undefined}
                 />
                 )
               ))}
+              {markdownPreview && (
+                <Box mt={2} p={1.5} sx={{ borderRadius: 1, border: '1px dashed rgba(0,0,0,0.2)', bgcolor: 'rgba(0,0,0,0.02)' }}>
+                  <Typography variant="subtitle2" gutterBottom>
+                    Черновой предпросмотр Markdown
+                  </Typography>
+                  <Typography variant="body2" color="text.secondary">
+                    {markdownPreview}
+                  </Typography>
+                </Box>
+              )}
             </Stack>
           </DialogContent>
           <DialogActions>
