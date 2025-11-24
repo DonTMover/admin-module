@@ -65,6 +65,10 @@ export default function DbBrowser() {
       setFormValues({});
       queryClient.invalidateQueries({ queryKey: ['db-rows', selected?.schema, selected?.name] });
     },
+    onError: (error: any) => {
+      const msg = error?.response?.data?.detail ?? 'Ошибка при добавлении строки';
+      setErrorMessage(String(msg));
+    },
   });
 
   const updateMutation = useMutation({
@@ -75,12 +79,20 @@ export default function DbBrowser() {
       setFormValues({});
       queryClient.invalidateQueries({ queryKey: ['db-rows', selected?.schema, selected?.name] });
     },
+    onError: (error: any) => {
+      const msg = error?.response?.data?.detail ?? 'Ошибка при обновлении строки';
+      setErrorMessage(String(msg));
+    },
   });
 
   const deleteMutation = useMutation({
     mutationFn: (key: Record<string, any>) => deleteDbRow(selected!.schema, selected!.name, key),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['db-rows', selected?.schema, selected?.name] });
+    },
+    onError: (error: any) => {
+      const msg = error?.response?.data?.detail ?? 'Ошибка при удалении строки';
+      setErrorMessage(String(msg));
     },
   });
 

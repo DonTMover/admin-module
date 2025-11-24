@@ -19,8 +19,9 @@ export default function Login() {
     try {
       await login(email, password);
       navigate('/admin');
-    } catch {
-      setError('Неверные данные');
+    } catch (e: any) {
+      const msg = e?.response?.data?.detail ?? 'Неверные данные';
+      setError(String(msg));
     } finally {
       setLoading(false);
     }
@@ -36,7 +37,24 @@ export default function Login() {
         <CardContent>
           <Box component="form" onSubmit={onSubmit} noValidate>
             <Stack spacing={2.5}>
-              {error && <Alert severity="error" variant="outlined">{error}</Alert>}
+              {error && (
+                <Alert
+                  severity="error"
+                  variant="outlined"
+                  sx={{
+                    animation: 'fadeInOut 4s ease',
+                    '@keyframes fadeInOut': {
+                      '0%': { opacity: 0, transform: 'translateY(-4px)' },
+                      '10%': { opacity: 1, transform: 'translateY(0)' },
+                      '90%': { opacity: 1, transform: 'translateY(0)' },
+                      '100%': { opacity: 0, transform: 'translateY(-4px)' },
+                    },
+                  }}
+                  onClose={() => setError(null)}
+                >
+                  {error}
+                </Alert>
+              )}
               <TextField
                 name="email"
                 type="email"
