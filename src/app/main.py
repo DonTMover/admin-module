@@ -6,6 +6,7 @@ from fastapi.staticfiles import StaticFiles
 from app.api.routes.admin import router as admin_router
 from app.api.routes.auth import router as auth_router
 from app.api.routes.users import router as users_router
+from app.api.routes.db_admin import router as db_admin_router
 from app.core.config import get_settings
 from app.core.db import engine
 from app.core.db_init import background_db_initializer, db_initialized, db_last_error, db_attempts, try_initialize
@@ -13,6 +14,7 @@ from fastapi.exceptions import HTTPException
 from fastapi import status
 from pathlib import Path
 from app.models.base import Base
+from fastapi.middleware.cors import CORSMiddleware
 import uvicorn
 
 settings = get_settings()
@@ -28,10 +30,25 @@ app = FastAPI(
     license_info={"name": "Proprietary"},
 )
 
+# CORS: ограничиваем доступ к API только с доверенных фронтенд-оригинов
+origins = [
+    "http://localhost:5173",  # Vite dev server (по умолчанию)
+    "http://localhost",       # Caddy/SPA на локалхосте
+]
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=origins,
+    allow_credentials=True,
+    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    allow_headers=["Authorization", "Content-Type"],
+)
+
 # Роуты
 app.include_router(auth_router)
 app.include_router(users_router)
 app.include_router(admin_router)
+app.include_router(db_admin_router)
 SPA_INDEX = Path("app/ui/static/spa/index.html")
 
 @app.exception_handler(HTTPException)
