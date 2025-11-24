@@ -138,8 +138,50 @@ export default function DbBrowser() {
       </Typography>
 
       <Stack direction={{ xs: 'column', md: 'row' }} spacing={3} alignItems="stretch">
-        <Card sx={{ flexBasis: { xs: '100%', md: '30%' }, borderRadius: 3, boxShadow: 1 }}>
-          <CardHeader title="Таблицы" subheader="Доступные пользовательские таблицы" />
+        <Card
+          sx={{
+            position: 'relative',
+            flexShrink: 0,
+            borderRadius: 3,
+            boxShadow: 1,
+            overflow: 'hidden',
+            width: { xs: '100%', md: 96 },
+            transition: 'width 0.25s ease',
+            '&:hover': {
+              width: { xs: '100%', md: 260 },
+            },
+          }}
+        >
+          <Box
+            sx={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              px: 2,
+              py: 1.5,
+              borderBottom: '1px solid rgba(0,0,0,0.08)',
+            }}
+          >
+            <Typography
+              variant="subtitle1"
+              sx={{
+                whiteSpace: 'nowrap',
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+              }}
+            >
+              {selected ? 'Таблицы' : 'Таблицы (выберите таблицу)'}
+            </Typography>
+            <Typography
+              variant="caption"
+              color="text.secondary"
+              sx={{
+                display: { xs: 'none', md: 'inline' },
+              }}
+            >
+              DB
+            </Typography>
+          </Box>
           <CardContent>
             {connections && (
               <Box mb={2}>
