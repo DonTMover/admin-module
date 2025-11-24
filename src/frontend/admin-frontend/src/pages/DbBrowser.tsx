@@ -4,7 +4,8 @@ import type { SelectChangeEvent } from '@mui/material';
 import { activateDbConnection, createDbConnection, createDbTable, deleteDbRow, dropDbTable, fetchDbConnections, fetchDbTableMeta, fetchDbTables, fetchDbTableRows, insertDbRow, testDbConnection, updateDbRow } from '../services/api';
 import type { CreateTablePayload, DbConnectionInfo, DbTable, DbTableRowsResponse, DbTableMeta, NewTableColumn } from '../services/api';
 import AddIcon from '@mui/icons-material/Add';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
+import ReactMarkdown from 'react-markdown';
 
 const PAGE_SIZE = 25;
 
@@ -35,7 +36,19 @@ export default function DbBrowser() {
   const [tableToDrop, setTableToDrop] = useState<DbTable | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [markdownPreview, setMarkdownPreview] = useState<string>('');
+  const [successMessage, setSuccessMessage] = useState<string | null>(null);
+  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
   const queryClient = useQueryClient();
+
+  useEffect(() => {
+    if (!hasUnsavedChanges) return;
+    const handler = (event: BeforeUnloadEvent) => {
+      event.preventDefault();
+      event.returnValue = '';
+    };
+    window.addEventListener('beforeunload', handler);
+    return () => window.removeEventListener('beforeunload', handler);
+  }, [hasUnsavedChanges]);
 
   const { data: tables, isLoading: loadingTables, error: tablesError } = useQuery({
     queryKey: ['db-tables'],
@@ -65,6 +78,7 @@ export default function DbBrowser() {
       setInsertOpen(false);
       setFormValues({});
       queryClient.invalidateQueries({ queryKey: ['db-rows', selected?.schema, selected?.name] });
+      setSuccessMessage('Строка успешно добавлена');
     },
     onError: (error: any) => {
       const msg = error?.response?.data?.detail ?? 'Ошибка при добавлении строки';
@@ -79,6 +93,7 @@ export default function DbBrowser() {
       setEditRow(null);
       setFormValues({});
       queryClient.invalidateQueries({ queryKey: ['db-rows', selected?.schema, selected?.name] });
+      setSuccessMessage('Строка успешно обновлена');
     },
     onError: (error: any) => {
       const msg = error?.response?.data?.detail ?? 'Ошибка при обновлении строки';
@@ -90,6 +105,7 @@ export default function DbBrowser() {
     mutationFn: (key: Record<string, any>) => deleteDbRow(selected!.schema, selected!.name, key),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['db-rows', selected?.schema, selected?.name] });
+      setSuccessMessage('Строка успешно удалена');
     },
     onError: (error: any) => {
       const msg = error?.response?.data?.detail ?? 'Ошибка при удалении строки';
@@ -130,16 +146,21 @@ export default function DbBrowser() {
       }
     });
     setFormValues(initial);
+    setMarkdownPreview('');
+    setHasUnsavedChanges(false);
     setInsertOpen(true);
   };
 
   const openEditDialog = (row: Record<string, any>) => {
     setEditRow(row);
     setFormValues(row);
+    setMarkdownPreview('');
+    setHasUnsavedChanges(false);
   };
 
   const handleFormChange = (field: string, value: string) => {
     setFormValues((prev) => ({ ...prev, [field]: value }));
+    setHasUnsavedChanges(true);
   };
 
   const activeConnectionId = useMemo(
@@ -194,6 +215,24 @@ export default function DbBrowser() {
 
   return (
     <Stack spacing={3}>
+      {successMessage && (
+        <Alert
+          severity="success"
+          sx={{
+            mb: 1,
+            animation: 'fadeInOut 4s ease',
+            '@keyframes fadeInOut': {
+              '0%': { opacity: 0, transform: 'translateY(-4px)' },
+              '10%': { opacity: 1, transform: 'translateY(0)' },
+              '90%': { opacity: 1, transform: 'translateY(0)' },
+              '100%': { opacity: 0, transform: 'translateY(-4px)' },
+            },
+          }}
+          onClose={() => setSuccessMessage(null)}
+        >
+          {successMessage}
+        </Alert>
+      )}
       {errorMessage && (
         <Alert
           severity="error"
@@ -442,7 +481,15 @@ export default function DbBrowser() {
                           </TableCell>
                           {columns.map((c) => (
                             <TableCell key={c}>
-                              {row[c] === null || row[c] === undefined ? '—' : String(row[c])}
+                              {row[c] === null || row[c] === undefined
+                                ? '—'
+                                : String(row[c]).includes('\n')
+                                  ? (
+                                    <Box sx={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
+                                      {String(row[c])}
+                                    </Box>
+                                  )
+                                  : String(row[c])}
                             </TableCell>
                           ))}
                         </TableRow>
@@ -510,9 +557,9 @@ export default function DbBrowser() {
                   <Typography variant="subtitle2" gutterBottom>
                     Черновой предпросмотр Markdown
                   </Typography>
-                  <Typography variant="body2" color="text.secondary">
-                    {markdownPreview}
-                  </Typography>
+                  <Box sx={{ typography: 'body2', color: 'text.secondary', '& p': { m: 0 }, '& h1, & h2, & h3': { mt: 0.5, mb: 0.5, fontWeight: 600 }, '& ul, & ol': { pl: 3, mt: 0.5, mb: 0.5 } }}>
+                    <ReactMarkdown>{markdownPreview}</ReactMarkdown>
+                  </Box>
                 </Box>
               )}
             </Stack>
@@ -523,6 +570,8 @@ export default function DbBrowser() {
                 setInsertOpen(false);
                 setEditRow(null);
                 setFormValues({});
+                setMarkdownPreview('');
+                setHasUnsavedChanges(false);
               }}
             >
               Отмена
@@ -550,6 +599,7 @@ export default function DbBrowser() {
                 } else {
                   insertMutation.mutate(castValues);
                 }
+                setHasUnsavedChanges(false);
               }}
             >
               Сохранить
