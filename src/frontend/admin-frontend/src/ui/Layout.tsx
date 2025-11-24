@@ -19,9 +19,9 @@ export default function Layout() {
           sx={{
             gap: 2,
             width: '100%',
-            maxWidth: 1440,
+            px: { xs: 2, sm: 3, md: 6, lg: 10 },
+            maxWidth: 'lg',
             mx: 'auto',
-            px: { xs: 2, sm: 3, md: 4 },
           }}
         >
           <Typography variant="h6" component="div" sx={{ fontWeight: 600 }}>
@@ -30,9 +30,6 @@ export default function Layout() {
           <Box sx={{ display: 'flex', gap: 1, ml: { xs: 1, sm: 2 } }}>
             <Button color="inherit" component={Link} to="/admin" size="small">
               Dashboard
-            </Button>
-            <Button color="inherit" component={Link} to="/auth/register" size="small">
-              Register
             </Button>
             {token && (
               <>
@@ -71,7 +68,7 @@ export default function Layout() {
           justifyContent: 'center',
         }}
       >
-        <Box sx={{ width: '100%', maxWidth: 960 }}>
+        <Box sx={{ width: '100%', maxWidth: (theme: any) => theme.breakpoints.values.lg }}>
           <Outlet />
         </Box>
       </Container>

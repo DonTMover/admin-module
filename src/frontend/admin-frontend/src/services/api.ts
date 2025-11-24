@@ -93,8 +93,29 @@ export interface DbTableMeta {
   columns: DbTableColumnMeta[];
 }
 
+export type NewTableColumnKind = 'id' | 'string' | 'text' | 'number' | 'boolean' | 'datetime';
+
+export interface NewTableColumn {
+  name: string;
+  kind: NewTableColumnKind;
+  required?: boolean;
+  unique?: boolean;
+  primary_key?: boolean;
+}
+
+export interface CreateTablePayload {
+  schema: string;
+  name: string;
+  columns: NewTableColumn[];
+}
+
 export async function fetchDbTables(): Promise<DbTable[]> {
   const { data } = await api.get<DbTable[]>('/admin/db/tables');
+  return data;
+}
+
+export async function createDbTable(payload: CreateTablePayload): Promise<{ ok: boolean }> {
+  const { data } = await api.post<{ ok: boolean }>('/admin/db/tables', payload);
   return data;
 }
 
@@ -107,6 +128,13 @@ export async function fetchDbTableRows(
   const { data } = await api.get<DbTableRowsResponse>(
     `/admin/db/table/${encodeURIComponent(schema)}/${encodeURIComponent(table)}`,
     { params: { limit, offset } },
+  );
+  return data;
+}
+
+export async function dropDbTable(schema: string, table: string): Promise<{ ok: boolean }> {
+  const { data } = await api.delete<{ ok: boolean }>(
+    `/admin/db/table/${encodeURIComponent(schema)}/${encodeURIComponent(table)}`,
   );
   return data;
 }

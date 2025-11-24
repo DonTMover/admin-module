@@ -1,9 +1,12 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Alert, Box, Button, Card, CardContent, CardHeader, Dialog, DialogActions, DialogContent, DialogTitle, FormControl, InputLabel, MenuItem, Select, Skeleton, Stack, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, TextField, Typography, Pagination } from '@mui/material';
+import { Alert, Box, Button, Card, CardContent, CardHeader, Dialog, DialogActions, DialogContent, DialogTitle, FormControl, InputLabel, MenuItem, Select, Skeleton, Stack, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, TextField, Typography, Pagination, IconButton, Tooltip } from '@mui/material';
 import type { SelectChangeEvent } from '@mui/material';
-import { activateDbConnection, createDbConnection, deleteDbRow, fetchDbConnections, fetchDbTableMeta, fetchDbTables, fetchDbTableRows, insertDbRow, testDbConnection, updateDbRow } from '../services/api';
-import type { DbConnectionInfo, DbTable, DbTableRowsResponse, DbTableMeta } from '../services/api';
-import { useMemo, useState } from 'react';
+import { activateDbConnection, createDbConnection, createDbTable, deleteDbRow, dropDbTable, fetchDbConnections, fetchDbTableMeta, fetchDbTables, fetchDbTableRows, insertDbRow, testDbConnection, updateDbRow } from '../services/api';
+import type { CreateTablePayload, DbConnectionInfo, DbTable, DbTableRowsResponse, DbTableMeta, NewTableColumn } from '../services/api';
+import AddIcon from '@mui/icons-material/Add';
+import { useEffect, useMemo, useState } from 'react';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 
 const PAGE_SIZE = 25;
 
@@ -25,7 +28,28 @@ export default function DbBrowser() {
   const [connUser, setConnUser] = useState('');
   const [connPassword, setConnPassword] = useState('');
   const [connMode, setConnMode] = useState<'fields' | 'dsn'>('fields');
+  const [isCreateTableOpen, setCreateTableOpen] = useState(false);
+  const [newTableName, setNewTableName] = useState('');
+  const [newTableSchema, setNewTableSchema] = useState('public');
+  const [newTableColumns, setNewTableColumns] = useState<NewTableColumn[]>([
+    { name: 'id', kind: 'id', primary_key: true },
+  ]);
+  const [tableToDrop, setTableToDrop] = useState<DbTable | null>(null);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [markdownPreview, setMarkdownPreview] = useState<string>('');
+  const [successMessage, setSuccessMessage] = useState<string | null>(null);
+  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
   const queryClient = useQueryClient();
+
+  useEffect(() => {
+    if (!hasUnsavedChanges) return;
+    const handler = (event: BeforeUnloadEvent) => {
+      event.preventDefault();
+      event.returnValue = '';
+    };
+    window.addEventListener('beforeunload', handler);
+    return () => window.removeEventListener('beforeunload', handler);
+  }, [hasUnsavedChanges]);
 
   const { data: tables, isLoading: loadingTables, error: tablesError } = useQuery({
     queryKey: ['db-tables'],
@@ -55,6 +79,11 @@ export default function DbBrowser() {
       setInsertOpen(false);
       setFormValues({});
       queryClient.invalidateQueries({ queryKey: ['db-rows', selected?.schema, selected?.name] });
+      setSuccessMessage('Строка успешно добавлена');
+    },
+    onError: (error: any) => {
+      const msg = error?.response?.data?.detail ?? 'Ошибка при добавлении строки';
+      setErrorMessage(String(msg));
     },
   });
 
@@ -65,6 +94,11 @@ export default function DbBrowser() {
       setEditRow(null);
       setFormValues({});
       queryClient.invalidateQueries({ queryKey: ['db-rows', selected?.schema, selected?.name] });
+      setSuccessMessage('Строка успешно обновлена');
+    },
+    onError: (error: any) => {
+      const msg = error?.response?.data?.detail ?? 'Ошибка при обновлении строки';
+      setErrorMessage(String(msg));
     },
   });
 
@@ -72,6 +106,11 @@ export default function DbBrowser() {
     mutationFn: (key: Record<string, any>) => deleteDbRow(selected!.schema, selected!.name, key),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['db-rows', selected?.schema, selected?.name] });
+      setSuccessMessage('Строка успешно удалена');
+    },
+    onError: (error: any) => {
+      const msg = error?.response?.data?.detail ?? 'Ошибка при удалении строки';
+      setErrorMessage(String(msg));
     },
   });
 
@@ -99,21 +138,30 @@ export default function DbBrowser() {
   const openInsertDialog = () => {
     const initial: Record<string, any> = {};
     (meta?.columns || []).forEach((col) => {
+      // для авто-ID и колонок с default ничего не заполняем
+      if (col.is_primary_key && col.name === 'id') {
+        return;
+      }
       if (!col.has_default && col.is_nullable) {
         initial[col.name] = '';
       }
     });
     setFormValues(initial);
+    setMarkdownPreview('');
+    setHasUnsavedChanges(false);
     setInsertOpen(true);
   };
 
   const openEditDialog = (row: Record<string, any>) => {
     setEditRow(row);
     setFormValues(row);
+    setMarkdownPreview('');
+    setHasUnsavedChanges(false);
   };
 
   const handleFormChange = (field: string, value: string) => {
     setFormValues((prev) => ({ ...prev, [field]: value }));
+    setHasUnsavedChanges(true);
   };
 
   const activeConnectionId = useMemo(
@@ -131,15 +179,128 @@ export default function DbBrowser() {
     return `postgresql+asyncpg://${encodeURIComponent(connUser)}:${encodeURIComponent(connPassword)}@${connHost}:${connPort}/${connDb}`;
   }, [connMode, connDsn, connUser, connPassword, connHost, connPort, connDb]);
 
+  const addTableColumn = () => {
+    setNewTableColumns((prev) => [
+      ...prev,
+      { name: '', kind: 'string', required: false, unique: false },
+    ]);
+  };
+
+  const updateTableColumn = (index: number, patch: Partial<NewTableColumn>) => {
+    setNewTableColumns((prev) => prev.map((col, i) => (i === index ? { ...col, ...patch } : col)));
+  };
+
+  const removeTableColumn = (index: number) => {
+    setNewTableColumns((prev) => prev.filter((_, i) => i !== index));
+  };
+
+  const handleCreateTable = async () => {
+    if (!newTableName.trim()) return;
+    const payload: CreateTablePayload = {
+      schema: newTableSchema || 'public',
+      name: newTableName.trim(),
+      columns: newTableColumns,
+    };
+    try {
+      await createDbTable(payload);
+      await queryClient.invalidateQueries({ queryKey: ['db-tables'] });
+      setCreateTableOpen(false);
+      setNewTableName('');
+      setNewTableSchema('public');
+      setNewTableColumns([{ name: 'id', kind: 'id', primary_key: true }]);
+    } catch (error: any) {
+      const msg = error?.response?.data?.detail ?? 'Не удалось создать таблицу';
+      setErrorMessage(String(msg));
+    }
+  };
+
   return (
     <Stack spacing={3}>
+      {successMessage && (
+        <Alert
+          severity="success"
+          sx={{
+            mb: 1,
+            animation: 'fadeInOut 4s ease',
+            '@keyframes fadeInOut': {
+              '0%': { opacity: 0, transform: 'translateY(-4px)' },
+              '10%': { opacity: 1, transform: 'translateY(0)' },
+              '90%': { opacity: 1, transform: 'translateY(0)' },
+              '100%': { opacity: 0, transform: 'translateY(-4px)' },
+            },
+          }}
+          onClose={() => setSuccessMessage(null)}
+        >
+          {successMessage}
+        </Alert>
+      )}
+      {errorMessage && (
+        <Alert
+          severity="error"
+          sx={{
+            mb: 1,
+            animation: 'fadeInOut 4s ease',
+            '@keyframes fadeInOut': {
+              '0%': { opacity: 0, transform: 'translateY(-4px)' },
+              '10%': { opacity: 1, transform: 'translateY(0)' },
+              '90%': { opacity: 1, transform: 'translateY(0)' },
+              '100%': { opacity: 0, transform: 'translateY(-4px)' },
+            },
+          }}
+          onClose={() => setErrorMessage(null)}
+        >
+          {errorMessage}
+        </Alert>
+      )}
       <Typography variant="h5" fontWeight={600}>
         Обозреватель базы данных
       </Typography>
 
       <Stack direction={{ xs: 'column', md: 'row' }} spacing={3} alignItems="stretch">
-        <Card sx={{ flexBasis: { xs: '100%', md: '30%' }, borderRadius: 3, boxShadow: 1 }}>
-          <CardHeader title="Таблицы" subheader="Доступные пользовательские таблицы" />
+        <Card
+          sx={{
+            position: 'relative',
+            flexShrink: 0,
+            borderRadius: 3,
+            boxShadow: 1,
+            overflow: 'hidden',
+            width: { xs: '100%', md: 96 },
+            transition: 'width 0.25s ease',
+            '&:hover': {
+              width: { xs: '100%', md: 260 },
+            },
+          }}
+        >
+          <Box
+            sx={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              px: 2,
+              py: 1.5,
+              borderBottom: '1px solid rgba(0,0,0,0.08)',
+            }}
+          >
+            <Typography
+              variant="subtitle1"
+              sx={{
+                whiteSpace: 'nowrap',
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+              }}
+            >
+              {selected ? 'Таблицы' : 'Таблицы (выберите таблицу)'}
+            </Typography>
+            <Typography
+              variant="caption"
+              color="text.secondary"
+              sx={{
+                display: { xs: 'none', md: 'inline' },
+              }}
+            >
+              DB
+            </Typography>
+          </Box>
           <CardContent>
             {connections && (
               <Box mb={2}>
@@ -181,23 +342,43 @@ export default function DbBrowser() {
                 <Skeleton variant="rectangular" height={32} />
               </Stack>
             ) : (
-              <FormControl fullWidth size="small">
-                <InputLabel>Таблица</InputLabel>
-                <Select
-                  label="Таблица"
-                  value={selected ? `${selected.schema}.${selected.name}` : ''}
-                  onChange={(event: SelectChangeEvent) => {
-                    const [schema, name] = String(event.target.value).split('.');
-                    handleSelect(schema, name);
-                  }}
-                >
-                  {(tables || []).map((t) => (
-                    <MenuItem key={`${t.schema}.${t.name}`} value={`${t.schema}.${t.name}`}>
-                      {t.schema}.{t.name}
-                    </MenuItem>
-                  ))}
-                </Select>
-              </FormControl>
+              <Stack spacing={1.5}>
+                <Stack direction="row" spacing={1} alignItems="center">
+                  <FormControl fullWidth size="small">
+                    <InputLabel>Таблица</InputLabel>
+                    <Select
+                      label="Таблица"
+                      value={selected ? `${selected.schema}.${selected.name}` : ''}
+                      onChange={(event: SelectChangeEvent) => {
+                        const [schema, name] = String(event.target.value).split('.');
+                        handleSelect(schema, name);
+                      }}
+                    >
+                      {(tables || []).map((t) => (
+                        <MenuItem key={`${t.schema}.${t.name}`} value={`${t.schema}.${t.name}`}>
+                          {t.schema}.{t.name}
+                        </MenuItem>
+                      ))}
+                    </Select>
+                  </FormControl>
+                  <IconButton
+                    size="small"
+                    color="primary"
+                    onClick={() => setCreateTableOpen(true)}
+                  >
+                    <AddIcon fontSize="small" />
+                  </IconButton>
+                  {selected && (
+                    <Button
+                      size="small"
+                      color="error"
+                      onClick={() => setTableToDrop(selected)}
+                    >
+                      Удалить
+                    </Button>
+                  )}
+                </Stack>
+              </Stack>
             )}
           </CardContent>
         </Card>
@@ -224,7 +405,16 @@ export default function DbBrowser() {
                   {meta.columns.map((col) => (
                     <Typography key={col.name} variant="caption" color="text.secondary">
                       {col.name} — {col.data_type}
-                      {col.is_primary_key && ' (PK)'}
+                      {col.is_primary_key && (
+                        <Tooltip
+                          title="PK (Primary Key) — уникальный идентификатор строки в таблице"
+                          placement="top"
+                        >
+                          <Box component="span" sx={{ ml: 0.5, cursor: 'help', textDecoration: 'dotted underline' }}>
+                            (PK)
+                          </Box>
+                        </Tooltip>
+                      )}
                       {col.is_unique && !col.is_primary_key && ' (UNIQUE)'}
                       {!col.is_nullable && ' · NOT NULL'}
                     </Typography>
@@ -292,7 +482,15 @@ export default function DbBrowser() {
                           </TableCell>
                           {columns.map((c) => (
                             <TableCell key={c}>
-                              {row[c] === null || row[c] === undefined ? '—' : String(row[c])}
+                              {row[c] === null || row[c] === undefined
+                                ? '—'
+                                : String(row[c]).includes('\n')
+                                  ? (
+                                    <Box sx={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
+                                      {String(row[c])}
+                                    </Box>
+                                  )
+                                  : String(row[c])}
                             </TableCell>
                           ))}
                         </TableRow>
@@ -333,6 +531,8 @@ export default function DbBrowser() {
           <DialogContent>
             <Stack spacing={2} mt={1}>
               {meta.columns.map((col) => (
+                // при создании новой строки прячем авто-ID
+                (isInsertOpen && !editRow && col.is_primary_key && col.name === 'id') ? null : (
                 <TextField
                   key={col.name}
                   label={`${col.name} (${col.data_type})`}
@@ -340,9 +540,29 @@ export default function DbBrowser() {
                   fullWidth
                   disabled={col.is_primary_key && !!editRow}
                   value={formValues[col.name] ?? ''}
-                  onChange={(event: React.ChangeEvent<HTMLInputElement>) => handleFormChange(col.name, event.target.value)}
+                  onChange={(event: React.ChangeEvent<HTMLInputElement>) => {
+                    const value = event.target.value;
+                    handleFormChange(col.name, value);
+                    if (col.data_type.toLowerCase().includes('text')) {
+                      setMarkdownPreview(value);
+                    }
+                  }}
+                  helperText={col.data_type.toLowerCase().includes('text') ? 'Поддерживается Markdown: заголовки, списки, ссылки и т.д.' : undefined}
+                  multiline={col.data_type.toLowerCase().includes('text')}
+                  minRows={col.data_type.toLowerCase().includes('text') ? 3 : undefined}
                 />
+                )
               ))}
+              {markdownPreview && (
+                <Box mt={2} p={1.5} sx={{ borderRadius: 1, border: '1px dashed rgba(0,0,0,0.2)', bgcolor: 'rgba(0,0,0,0.02)' }}>
+                  <Typography variant="subtitle2" gutterBottom>
+                    Черновой предпросмотр Markdown
+                  </Typography>
+                  <Box sx={{ typography: 'body2', color: 'text.secondary', '& p': { m: 0 }, '& h1, & h2, & h3': { mt: 0.5, mb: 0.5, fontWeight: 600 }, '& ul, & ol': { pl: 3, mt: 0.5, mb: 0.5 } }}>
+                    <ReactMarkdown remarkPlugins={[remarkGfm]}>{markdownPreview}</ReactMarkdown>
+                  </Box>
+                </Box>
+              )}
             </Stack>
           </DialogContent>
           <DialogActions>
@@ -351,6 +571,8 @@ export default function DbBrowser() {
                 setInsertOpen(false);
                 setEditRow(null);
                 setFormValues({});
+                setMarkdownPreview('');
+                setHasUnsavedChanges(false);
               }}
             >
               Отмена
@@ -358,12 +580,27 @@ export default function DbBrowser() {
             <Button
               variant="contained"
               onClick={() => {
+                const castValues = { ...formValues };
+                // простое приведение типов на основе data_type
+                (meta?.columns || []).forEach((col) => {
+                  const v = castValues[col.name];
+                  if (v === undefined || v === '') return;
+                  const t = col.data_type.toLowerCase();
+                  if (t.includes('integer') || t.includes('numeric')) {
+                    const n = Number(v);
+                    if (!Number.isNaN(n)) castValues[col.name] = n;
+                  } else if (t.includes('boolean')) {
+                    const s = String(v).toLowerCase();
+                    castValues[col.name] = s === 'true' || s === '1' || s === 'yes';
+                  }
+                });
                 if (editRow) {
                   const key = currentKey(editRow);
-                  updateMutation.mutate({ key, values: formValues });
+                  updateMutation.mutate({ key, values: castValues });
                 } else {
-                  insertMutation.mutate(formValues);
+                  insertMutation.mutate(castValues);
                 }
+                setHasUnsavedChanges(false);
               }}
             >
               Сохранить
@@ -567,6 +804,155 @@ export default function DbBrowser() {
               }}
             >
               Сохранить и активировать
+            </Button>
+          </DialogActions>
+        </Dialog>
+      )}
+
+      {/* Диалог создания новой таблицы */}
+      {isCreateTableOpen && (
+        <Dialog open onClose={() => setCreateTableOpen(false)} maxWidth="sm" fullWidth>
+          <DialogTitle>Новая таблица</DialogTitle>
+          <DialogContent>
+            <Stack spacing={2} mt={1}>
+              <TextField
+                label="Схема"
+                size="small"
+                fullWidth
+                value={newTableSchema}
+                onChange={(event: React.ChangeEvent<HTMLInputElement>) => setNewTableSchema(event.target.value)}
+                helperText="Обычно public"
+              />
+              <TextField
+                label="Имя таблицы"
+                size="small"
+                fullWidth
+                value={newTableName}
+                onChange={(event: React.ChangeEvent<HTMLInputElement>) => setNewTableName(event.target.value)}
+                helperText="Латиница, без пробелов, например user_profile"
+              />
+              <Typography variant="subtitle2">Колонки</Typography>
+              <Stack spacing={1.5}>
+                {newTableColumns.map((col, index) => (
+                  <Stack key={index} direction={{ xs: 'column', sm: 'row' }} spacing={1} alignItems="center">
+                    <TextField
+                      label="Имя"
+                      size="small"
+                      value={col.name}
+                      onChange={(event: React.ChangeEvent<HTMLInputElement>) =>
+                        updateTableColumn(index, { name: event.target.value })
+                      }
+                      sx={{ flex: 2 }}
+                    />
+                    <FormControl size="small" sx={{ flex: 2 }}>
+                      <InputLabel>Тип</InputLabel>
+                      <Select
+                        label="Тип"
+                        value={col.kind}
+                        onChange={(event: SelectChangeEvent<NewTableColumn['kind']>) =>
+                          updateTableColumn(index, { kind: event.target.value as NewTableColumn['kind'] })
+                        }
+                      >
+                        <MenuItem value="id">ID (авто-нумерация)</MenuItem>
+                        <MenuItem value="string">Короткий текст</MenuItem>
+                        <MenuItem value="text">Длинный текст</MenuItem>
+                        <MenuItem value="number">Число</MenuItem>
+                        <MenuItem value="datetime">Дата/время</MenuItem>
+                        <MenuItem value="boolean">Да/нет (флаг)</MenuItem>
+                      </Select>
+                    </FormControl>
+                    <FormControl size="small" sx={{ flex: 1 }}>
+                      <InputLabel>Обязательное</InputLabel>
+                      <Select
+                        label="Обязательное"
+                        value={col.required ? 'yes' : 'no'}
+                        onChange={(event: SelectChangeEvent<string>) =>
+                          updateTableColumn(index, { required: event.target.value === 'yes' })
+                        }
+                      >
+                        <MenuItem value="no">Нет</MenuItem>
+                        <MenuItem value="yes">Да</MenuItem>
+                      </Select>
+                    </FormControl>
+                    <FormControl size="small" sx={{ flex: 1 }}>
+                      <InputLabel>Уникальное</InputLabel>
+                      <Select
+                        label="Уникальное"
+                        value={col.unique ? 'yes' : 'no'}
+                        onChange={(event: SelectChangeEvent<string>) =>
+                          updateTableColumn(index, { unique: event.target.value === 'yes' })
+                        }
+                      >
+                        <MenuItem value="no">Нет</MenuItem>
+                        <MenuItem value="yes">Да</MenuItem>
+                      </Select>
+                    </FormControl>
+                    <FormControl size="small" sx={{ flex: 1 }}>
+                      <InputLabel>PK</InputLabel>
+                      <Select
+                        label="PK"
+                        value={col.primary_key ? 'yes' : 'no'}
+                        onChange={(event: SelectChangeEvent<string>) =>
+                          updateTableColumn(index, { primary_key: event.target.value === 'yes' })
+                        }
+                      >
+                        <MenuItem value="no">Нет</MenuItem>
+                        <MenuItem value="yes">Да</MenuItem>
+                      </Select>
+                    </FormControl>
+                    {index > 0 && (
+                      <IconButton
+                        size="small"
+                        color="error"
+                        onClick={() => removeTableColumn(index)}
+                      >
+                        ×
+                      </IconButton>
+                    )}
+                  </Stack>
+                ))}
+                <Button variant="text" size="small" onClick={addTableColumn} startIcon={<AddIcon fontSize="small" />}>
+                  Добавить колонку
+                </Button>
+              </Stack>
+            </Stack>
+          </DialogContent>
+          <DialogActions>
+            <Button onClick={() => setCreateTableOpen(false)}>Отмена</Button>
+            <Button variant="contained" onClick={handleCreateTable} disabled={!newTableName.trim()}>
+              Создать таблицу
+            </Button>
+          </DialogActions>
+        </Dialog>
+      )}
+
+      {/* Диалог подтверждения удаления таблицы */}
+      {tableToDrop && (
+        <Dialog
+          open
+          onClose={() => setTableToDrop(null)}
+          maxWidth="xs"
+          fullWidth
+        >
+          <DialogTitle>Удалить таблицу</DialogTitle>
+          <DialogContent>
+            <Typography variant="body2" mt={1} mb={1}>
+              Удалить таблицу {tableToDrop.schema}.{tableToDrop.name}? Все данные будут потеряны.
+            </Typography>
+          </DialogContent>
+          <DialogActions>
+            <Button onClick={() => setTableToDrop(null)}>Отмена</Button>
+            <Button
+              variant="contained"
+              color="error"
+              onClick={async () => {
+                await dropDbTable(tableToDrop.schema, tableToDrop.name);
+                setTableToDrop(null);
+                setSelected(null);
+                await queryClient.invalidateQueries({ queryKey: ['db-tables'] });
+              }}
+            >
+              Удалить
             </Button>
           </DialogActions>
         </Dialog>

@@ -10,6 +10,7 @@ Admin Module — административный модуль для управ
 
 - **Backend** — FastAPI + SQLAlchemy Async + PostgreSQL.
 - **Frontend** — React + TypeScript + Vite + MUI (Material Design 3‑подобная тема).
+	- Включает удобный обозреватель БД с многострочными полями для длинных текстов и подсказками по Markdown при редактировании `text`‑колонок.
 - **Инфраструктура** — Docker (multi-stage build) + Caddy как reverse proxy.
 - **Alembic** — миграции БД с кнопкой `upgrade head` в web‑интерфейсе (только для админов).
 
