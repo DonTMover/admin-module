@@ -42,6 +42,9 @@ export default function Layout() {
                 <Button color="inherit" component={Link} to="/admin/migrations" size="small">
                   Migrations
                 </Button>
+                <Button color="inherit" component={Link} to="/admin/db" size="small">
+                  DB
+                </Button>
               </>
             )}
           </Box>

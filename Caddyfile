@@ -3,12 +3,12 @@
 }
 
 localhost:80 {
-	encode gzip
+    encode gzip
 
 	# Health-check for Caddy itself
 	respond /health 200
 
-	# Всё остальное обслуживает FastAPI (React SPA + API)
+	# Всё обслуживает FastAPI (React SPA + API)
 	reverse_proxy admin-module:8000
 }
 

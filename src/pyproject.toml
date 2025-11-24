@@ -16,13 +16,15 @@ dependencies = [
     "pydantic>=2.0",
     "pydantic-settings>=2.0",
     "email-validator",
-    "passlib[bcrypt]",
     "python-jose[cryptography]",
     "python-multipart",
+    "alembic",
+    "passlib[bcrypt]==1.7.4",
+    "bcrypt==3.2.2"
 ]
 
 [project.optional-dependencies]
-dev = ["pytest", "httpx", "pytest-asyncio", "ruff", "alembic"]
+dev = ["pytest", "httpx", "pytest-asyncio", "ruff"]
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"

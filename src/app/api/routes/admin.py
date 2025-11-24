@@ -14,8 +14,8 @@ router = APIRouter(prefix="/admin", tags=["admin"])
 SPA_INDEX = Path("app/ui/static/spa/index.html")
 
 @router.get("/")
-async def dashboard_redirect(request: Request, db: AsyncSession = Depends(get_db), current_user=Depends(get_current_user)):
-    # API still validates auth; UI handled by React SPA
+async def dashboard_redirect(request: Request):
+    # Отдаем SPA без проверки токена, авторизация обрабатывается на фронтенде
     if SPA_INDEX.exists():
         return FileResponse(SPA_INDEX)
     return RedirectResponse(url="/", status_code=302)

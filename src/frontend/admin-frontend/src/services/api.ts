@@ -55,4 +55,95 @@ export async function migrationsUpgradeHead() {
   return data;
 }
 
+export interface DbTable {
+  schema: string;
+  name: string;
+  full_name: string;
+}
+
+export interface DbTableRowsResponse {
+  total: number;
+  rows: Record<string, any>[];
+}
+
+export interface DbTableColumnMeta {
+  name: string;
+  data_type: string;
+  is_nullable: boolean;
+  has_default: boolean;
+  default: any;
+  is_primary_key: boolean;
+  is_unique: boolean;
+}
+
+export interface DbTableMeta {
+  schema: string;
+  name: string;
+  primary_key: string[];
+  unique_indexes: { name: string; columns: string[] }[];
+  columns: DbTableColumnMeta[];
+}
+
+export async function fetchDbTables(): Promise<DbTable[]> {
+  const { data } = await api.get<DbTable[]>('/admin/db/tables');
+  return data;
+}
+
+export async function fetchDbTableRows(
+  schema: string,
+  table: string,
+  limit: number,
+  offset: number,
+): Promise<DbTableRowsResponse> {
+  const { data } = await api.get<DbTableRowsResponse>(
+    `/admin/db/table/${encodeURIComponent(schema)}/${encodeURIComponent(table)}`,
+    { params: { limit, offset } },
+  );
+  return data;
+}
+
+export async function fetchDbTableMeta(schema: string, table: string): Promise<DbTableMeta> {
+  const { data } = await api.get<DbTableMeta>(
+    `/admin/db/table/${encodeURIComponent(schema)}/${encodeURIComponent(table)}/meta`,
+  );
+  return data;
+}
+
+export async function insertDbRow(
+  schema: string,
+  table: string,
+  values: Record<string, any>,
+): Promise<{ row: Record<string, any> | null }> {
+  const { data } = await api.post<{ row: Record<string, any> | null }>(
+    `/admin/db/table/${encodeURIComponent(schema)}/${encodeURIComponent(table)}/rows`,
+    { values },
+  );
+  return data;
+}
+
+export async function updateDbRow(
+  schema: string,
+  table: string,
+  key: Record<string, any>,
+  values: Record<string, any>,
+): Promise<{ row: Record<string, any> | null }> {
+  const { data } = await api.put<{ row: Record<string, any> | null }>(
+    `/admin/db/table/${encodeURIComponent(schema)}/${encodeURIComponent(table)}/rows`,
+    { key, values },
+  );
+  return data;
+}
+
+export async function deleteDbRow(
+  schema: string,
+  table: string,
+  key: Record<string, any>,
+): Promise<{ deleted: number }> {
+  const { data } = await api.delete<{ deleted: number }>(
+    `/admin/db/table/${encodeURIComponent(schema)}/${encodeURIComponent(table)}/rows`,
+    { data: { key } },
+  );
+  return data;
+}
+
 export default api;
