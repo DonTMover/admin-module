@@ -167,6 +167,149 @@ async def list_tables(
     ]
 
 
+@router.post("/tables")
+async def create_table(
+    payload: Dict[str, Any],
+    current_user=Depends(get_current_user),
+):
+    """Create a simple user table in the active database.
+
+    Body example:
+    {
+      "schema": "public",
+      "name": "my_table",
+      "columns": [
+        {"name": "id", "kind": "id"},
+        {"name": "title", "kind": "string", "required": true},
+        {"name": "is_active", "kind": "boolean"}
+      ]
+    }
+    """
+    ensure_is_admin(current_user)
+    schema = (payload.get("schema") or "public").strip()
+    name = (payload.get("name") or "").strip()
+    columns_def = payload.get("columns") or []
+
+    if not schema or not name:
+        raise HTTPException(status_code=400, detail="'schema' and 'name' are required")
+    if len(name) > 63:
+        raise HTTPException(status_code=400, detail="Table name is too long (max 63 characters)")
+    if not isinstance(columns_def, list) or not columns_def:
+        raise HTTPException(status_code=400, detail="'columns' must be a non-empty array")
+
+    def safe_ident(value: str) -> str:
+        if not value or not isinstance(value, str):
+            raise HTTPException(status_code=400, detail="Identifiers must be non-empty strings")
+        # allow only latin letters, digits and underscores to keep it simple
+        if not all(c.isalnum() or c == '_' for c in value):
+            raise HTTPException(status_code=400, detail="Identifiers must contain only latin letters, digits or '_' ")
+        return value
+
+    schema = safe_ident(schema)
+    name = safe_ident(name)
+
+    sql_columns: List[str] = []
+    pk_columns: List[str] = []
+
+    seen_column_names: set[str] = set()
+
+    for col in columns_def:
+        col_name = safe_ident(str(col.get("name") or "").strip())
+        kind = (col.get("kind") or "string").lower()
+        required = bool(col.get("required"))
+        unique = bool(col.get("unique"))
+        is_pk = bool(col.get("primary_key")) or kind == "id"
+
+        if not col_name:
+            raise HTTPException(status_code=400, detail="Column name is required")
+        if col_name in seen_column_names:
+            raise HTTPException(status_code=400, detail=f"Duplicate column name: {col_name}")
+        seen_column_names.add(col_name)
+
+        if kind == "id":
+            col_type = "bigserial"
+        elif kind == "string":
+            col_type = "varchar(255)"
+        elif kind == "text":
+            col_type = "text"
+        elif kind == "number":
+            col_type = "integer"
+        elif kind == "boolean":
+            col_type = "boolean"
+        elif kind == "datetime":
+            col_type = "timestamp with time zone"
+        else:
+            raise HTTPException(status_code=400, detail=f"Unsupported column kind: {kind}")
+
+        pieces = [f'"{col_name}" {col_type}']
+        if required or is_pk:
+            pieces.append("NOT NULL")
+        if unique and not is_pk:
+            pieces.append("UNIQUE")
+
+        sql_columns.append(" ".join(pieces))
+        if is_pk:
+            pk_columns.append(col_name)
+
+    if pk_columns:
+        cols_sql = ", ".join(sql_columns + [
+            "PRIMARY KEY (" + ", ".join(f'"{c}"' for c in pk_columns) + ")",
+        ])
+    else:
+        cols_sql = ", ".join(sql_columns)
+
+    identifier = f'"{schema}"."{name}"'
+    engine = await get_active_engine()
+
+    create_sql = text(f"CREATE TABLE {identifier} ({cols_sql})")
+
+    async with AsyncSession(engine) as session:
+        try:
+            await session.execute(create_sql)
+            await session.commit()
+        except Exception as exc:
+            # Most likely table already exists or invalid definition
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    return {"ok": True}
+
+
+@router.delete("/table/{schema}/{table}")
+async def drop_table(
+    schema: str,
+    table: str,
+    current_user=Depends(get_current_user),
+):
+    """Drop a user table in the active database.
+
+    This is destructive; UI should ask for explicit confirmation.
+    """
+    ensure_is_admin(current_user)
+
+    def safe_ident(value: str) -> str:
+        if not value or not isinstance(value, str):
+            raise HTTPException(status_code=400, detail="Identifiers must be non-empty strings")
+        if any(c in value for c in ('"', ';', '\\')):
+            raise HTTPException(status_code=400, detail="Invalid characters in identifier")
+        return value
+
+    schema = safe_ident(schema)
+    table = safe_ident(table)
+
+    identifier = f'"{schema}"."{table}"'
+    engine = await get_active_engine()
+    drop_sql = text(f"DROP TABLE IF EXISTS {identifier} CASCADE")
+
+    async with AsyncSession(engine) as session:
+        try:
+            await session.execute(drop_sql)
+            await session.commit()
+        except Exception as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    return {"ok": True}
+
+
 @router.get("/table/{schema}/{table}")
 async def read_table(
     schema: str,
