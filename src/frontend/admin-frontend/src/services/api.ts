@@ -66,6 +66,14 @@ export interface DbTableRowsResponse {
   rows: Record<string, any>[];
 }
 
+export interface DbConnectionInfo {
+  id: number;
+  name: string;
+  dsn: string;
+  read_only: boolean;
+  active: boolean;
+}
+
 export interface DbTableColumnMeta {
   name: string;
   data_type: string;
@@ -99,6 +107,30 @@ export async function fetchDbTableRows(
     `/admin/db/table/${encodeURIComponent(schema)}/${encodeURIComponent(table)}`,
     { params: { limit, offset } },
   );
+  return data;
+}
+
+export async function fetchDbConnections(): Promise<DbConnectionInfo[]> {
+  const { data } = await api.get<DbConnectionInfo[]>('/admin/db/connections');
+  return data;
+}
+
+export async function testDbConnection(dsn: string): Promise<{ ok: boolean }> {
+  const { data } = await api.post<{ ok: boolean }>('/admin/db/connections/test', { dsn });
+  return data;
+}
+
+export async function createDbConnection(
+  name: string,
+  dsn: string,
+  read_only: boolean,
+): Promise<DbConnectionInfo> {
+  const { data } = await api.post<DbConnectionInfo>('/admin/db/connections', { name, dsn, read_only });
+  return data;
+}
+
+export async function activateDbConnection(connId: number): Promise<{ active: number }> {
+  const { data } = await api.post<{ active: number }>(`/admin/db/connections/${connId}/activate`, {});
   return data;
 }
 

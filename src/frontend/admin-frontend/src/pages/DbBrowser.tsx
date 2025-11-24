@@ -1,8 +1,8 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Alert, Box, Button, Card, CardContent, CardHeader, Dialog, DialogActions, DialogContent, DialogTitle, FormControl, InputLabel, MenuItem, Select, Skeleton, Stack, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, TextField, Typography, Pagination } from '@mui/material';
 import type { SelectChangeEvent } from '@mui/material';
-import { deleteDbRow, fetchDbTableMeta, fetchDbTables, fetchDbTableRows, insertDbRow, updateDbRow } from '../services/api';
-import type { DbTable, DbTableRowsResponse, DbTableMeta } from '../services/api';
+import { activateDbConnection, createDbConnection, deleteDbRow, fetchDbConnections, fetchDbTableMeta, fetchDbTables, fetchDbTableRows, insertDbRow, testDbConnection, updateDbRow } from '../services/api';
+import type { DbConnectionInfo, DbTable, DbTableRowsResponse, DbTableMeta } from '../services/api';
 import { useMemo, useState } from 'react';
 
 const PAGE_SIZE = 25;
@@ -15,11 +15,20 @@ export default function DbBrowser() {
   const [formValues, setFormValues] = useState<Record<string, any>>({});
   const [deleteRow, setDeleteRow] = useState<Record<string, any> | null>(null);
   const [readOnly, setReadOnly] = useState(false);
+  const [isConnDialogOpen, setConnDialogOpen] = useState(false);
+  const [connName, setConnName] = useState('');
+  const [connDsn, setConnDsn] = useState('');
+  const [connReadOnly, setConnReadOnly] = useState(false);
   const queryClient = useQueryClient();
 
   const { data: tables, isLoading: loadingTables, error: tablesError } = useQuery({
     queryKey: ['db-tables'],
     queryFn: fetchDbTables,
+  });
+
+  const { data: connections } = useQuery<DbConnectionInfo[]>({
+    queryKey: ['db-connections'],
+    queryFn: fetchDbConnections,
   });
 
   const { data: rowsData, isLoading: loadingRows, error: rowsError } = useQuery<DbTableRowsResponse>({
@@ -101,6 +110,11 @@ export default function DbBrowser() {
     setFormValues((prev) => ({ ...prev, [field]: value }));
   };
 
+  const activeConnectionId = useMemo(
+    () => connections?.find((c) => c.active)?.id ?? 0,
+    [connections],
+  );
+
   return (
     <Stack spacing={3}>
       <Typography variant="h5" fontWeight={600}>
@@ -111,6 +125,38 @@ export default function DbBrowser() {
         <Card sx={{ flexBasis: { xs: '100%', md: '30%' }, borderRadius: 3, boxShadow: 1 }}>
           <CardHeader title="Таблицы" subheader="Доступные пользовательские таблицы" />
           <CardContent>
+            {connections && (
+              <Box mb={2}>
+                <Typography variant="subtitle2" gutterBottom>
+                  Подключение к БД
+                </Typography>
+                <Stack direction="row" spacing={1} alignItems="center">
+                  <FormControl size="small" fullWidth>
+                    <InputLabel>Подключение</InputLabel>
+                    <Select
+                      label="Подключение" 
+                      value={String(activeConnectionId)}
+                      onChange={async (event: SelectChangeEvent<string>) => {
+                        const id = Number(event.target.value);
+                        await activateDbConnection(id);
+                        queryClient.invalidateQueries({ queryKey: ['db-connections'] });
+                        queryClient.invalidateQueries({ queryKey: ['db-tables'] });
+                        setSelected(null);
+                      }}
+                    >
+                      {connections.map((c) => (
+                        <MenuItem key={c.id} value={String(c.id)}>
+                          {c.name} {c.read_only ? '(RO)' : ''}
+                        </MenuItem>
+                      ))}
+                    </Select>
+                  </FormControl>
+                  <Button size="small" variant="outlined" onClick={() => setConnDialogOpen(true)}>
+                    Новое
+                  </Button>
+                </Stack>
+              </Box>
+            )}
             {tablesError && <Alert severity="error">Не удалось загрузить список таблиц</Alert>}
             {loadingTables ? (
               <Stack spacing={1.5}>
@@ -341,6 +387,79 @@ export default function DbBrowser() {
               }}
             >
               Удалить
+            </Button>
+          </DialogActions>
+        </Dialog>
+      )}
+
+      {/* Диалог создания нового подключения */}
+      {isConnDialogOpen && (
+        <Dialog open onClose={() => setConnDialogOpen(false)} maxWidth="sm" fullWidth>
+          <DialogTitle>Новое подключение к БД</DialogTitle>
+          <DialogContent>
+            <Stack spacing={2} mt={1}>
+              <TextField
+                label="Название"
+                size="small"
+                fullWidth
+                value={connName}
+                onChange={(event: React.ChangeEvent<HTMLInputElement>) => setConnName(event.target.value)}
+              />
+              <TextField
+                label="DSN (postgresql+asyncpg://user:pass@host:port/db)"
+                size="small"
+                fullWidth
+                value={connDsn}
+                onChange={(event: React.ChangeEvent<HTMLInputElement>) => setConnDsn(event.target.value)}
+              />
+              <Stack direction="row" spacing={1} alignItems="center">
+                <Button
+                  variant={connReadOnly ? 'contained' : 'outlined'}
+                  size="small"
+                  color={connReadOnly ? 'secondary' : 'inherit'}
+                  onClick={() => setConnReadOnly((prev) => !prev)}
+                >
+                  {connReadOnly ? 'Read-only' : 'RW'}
+                </Button>
+                <Typography variant="caption" color="text.secondary">
+                  Read-only рекомендуется для боевых баз.
+                </Typography>
+              </Stack>
+            </Stack>
+          </DialogContent>
+          <DialogActions>
+            <Button
+              onClick={() => {
+                setConnDialogOpen(false);
+                setConnName('');
+                setConnDsn('');
+                setConnReadOnly(false);
+              }}
+            >
+              Отмена
+            </Button>
+            <Button
+              variant="contained"
+              disabled={!connDsn}
+              onClick={async () => {
+                try {
+                  await testDbConnection(connDsn);
+                  const created = await createDbConnection(connName || 'custom', connDsn, connReadOnly);
+                  await activateDbConnection(created.id);
+                  queryClient.invalidateQueries({ queryKey: ['db-connections'] });
+                  queryClient.invalidateQueries({ queryKey: ['db-tables'] });
+                  setSelected(null);
+                  setConnDialogOpen(false);
+                  setConnName('');
+                  setConnDsn('');
+                  setConnReadOnly(false);
+                } catch (error) {
+                  // Ошибка теста или создания подключения отобразится через Alert, если добавить хэндлинг; пока просто не закрываем диалог
+                  console.error(error);
+                }
+              }}
+            >
+              Сохранить и активировать
             </Button>
           </DialogActions>
         </Dialog>

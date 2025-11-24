@@ -1,19 +1,141 @@
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import text
-from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, create_async_engine
 
-from app.core.db import get_db
+from app.core.db import engine as default_engine, get_db
 from app.core.security import get_current_user, ensure_is_admin
 
 
 router = APIRouter(prefix="/admin/db", tags=["db-admin"])
 
 
+# --- Simple in-memory connection registry (process-local, non-persistent) ---
+
+class DbConnection:
+    def __init__(self, conn_id: int, name: str, dsn: str, read_only: bool, engine: AsyncEngine):
+        self.id = conn_id
+        self.name = name
+        self.dsn = dsn
+        self.read_only = read_only
+        self.engine = engine
+
+
+_connections: Dict[int, DbConnection] = {}
+_next_conn_id: int = 1
+_active_connection_id: Optional[int] = None
+
+
+async def get_active_engine() -> AsyncEngine:
+    """Return engine for active connection or default app engine.
+
+    For now, admin DB UI can switch between process-local connections.
+    """
+    if _active_connection_id is None:
+        return default_engine
+    conn = _connections.get(_active_connection_id)
+    if conn is None:
+        return default_engine
+    return conn.engine
+
+
+@router.get("/connections")
+async def list_connections(current_user=Depends(get_current_user)):
+    """List available DB connections (process-local).
+
+    Connection id=0 represents the default application database.
+    """
+    ensure_is_admin(current_user)
+    items = [
+        {
+            "id": 0,
+            "name": "default",
+            "dsn": "<app default>",
+            "read_only": False,
+            "active": _active_connection_id is None,
+        }
+    ]
+    for conn_id, conn in _connections.items():
+        items.append(
+            {
+                "id": conn_id,
+                "name": conn.name,
+                "dsn": conn.dsn,
+                "read_only": conn.read_only,
+                "active": _active_connection_id == conn_id,
+            }
+        )
+    return items
+
+
+@router.post("/connections/test")
+async def test_connection(payload: Dict[str, Any], current_user=Depends(get_current_user)):
+    """Test DSN by attempting simple SELECT 1.
+
+    Body: {"dsn": "postgresql+asyncpg://...", "read_only": bool?, "name": str?}
+    """
+    ensure_is_admin(current_user)
+    dsn = payload.get("dsn")
+    if not isinstance(dsn, str) or not dsn:
+        raise HTTPException(status_code=400, detail="'dsn' must be non-empty string")
+
+    test_engine = create_async_engine(dsn, echo=False, future=True)
+    try:
+        async with test_engine.connect() as conn:
+            await conn.execute(text("SELECT 1"))
+    except Exception as exc:
+        raise HTTPException(status_code=400, detail=f"Connection failed: {exc}") from exc
+    finally:
+        await test_engine.dispose()
+
+    return {"ok": True}
+
+
+@router.post("/connections")
+async def create_connection(payload: Dict[str, Any], current_user=Depends(get_current_user)):
+    """Create a new named connection and make it available for selection.
+
+    Body: {"name": str, "dsn": str, "read_only": bool?}
+    """
+    global _next_conn_id
+    ensure_is_admin(current_user)
+    name = payload.get("name") or "custom"
+    dsn = payload.get("dsn")
+    read_only = bool(payload.get("read_only") or False)
+    if not isinstance(dsn, str) or not dsn:
+        raise HTTPException(status_code=400, detail="'dsn' must be non-empty string")
+
+    # create engine but do not test here (recommend using /connections/test first)
+    new_engine = create_async_engine(dsn, echo=False, future=True)
+    conn_id = _next_conn_id
+    _next_conn_id += 1
+
+    _connections[conn_id] = DbConnection(conn_id, str(name), dsn, read_only, new_engine)
+    return {
+        "id": conn_id,
+        "name": name,
+        "dsn": dsn,
+        "read_only": read_only,
+    }
+
+
+@router.post("/connections/{conn_id}/activate")
+async def activate_connection(conn_id: int, current_user=Depends(get_current_user)):
+    """Activate given connection id, or 0 to use default app DB."""
+    global _active_connection_id
+    ensure_is_admin(current_user)
+    if conn_id == 0:
+        _active_connection_id = None
+        return {"active": 0}
+    if conn_id not in _connections:
+        raise HTTPException(status_code=404, detail="Connection not found")
+    _active_connection_id = conn_id
+    return {"active": conn_id}
+
+
 @router.get("/tables")
 async def list_tables(
-    db: AsyncSession = Depends(get_db),
     current_user=Depends(get_current_user),
 ):
     """Return list of user tables in the current database.
@@ -21,6 +143,7 @@ async def list_tables(
     Only for authenticated admins.
     """
     ensure_is_admin(current_user)
+    engine = await get_active_engine()
     # Works for PostgreSQL; filters out internal schemas
     q = text(
         """
@@ -31,8 +154,9 @@ async def list_tables(
         ORDER BY table_schema, table_name
         """
     )
-    result = await db.execute(q)
-    rows = result.mappings().all()
+    async with AsyncSession(engine) as session:
+        result = await session.execute(q)
+        rows = result.mappings().all()
     return [
         {
             "schema": row["table_schema"],
@@ -49,7 +173,6 @@ async def read_table(
     table: str,
     limit: int = Query(50, ge=1, le=500),
     offset: int = Query(0, ge=0),
-    db: AsyncSession = Depends(get_db),
     current_user=Depends(get_current_user),
 ):
     """Return rows of the given table with simple pagination.
@@ -59,19 +182,21 @@ async def read_table(
     ensure_is_admin(current_user)
 
     identifier = f'"{schema}"."{table}"'
+    engine = await get_active_engine()
 
-    # Fetch total count
-    count_q = text(f"SELECT COUNT(*) AS cnt FROM {identifier}")
-    try:
-        count_result = await db.execute(count_q)
-    except Exception as exc:  # table might not exist, etc.
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
-    total = int(count_result.scalar_one())
+    async with AsyncSession(engine) as session:
+        # Fetch total count
+        count_q = text(f"SELECT COUNT(*) AS cnt FROM {identifier}")
+        try:
+            count_result = await session.execute(count_q)
+        except Exception as exc:  # table might not exist, etc.
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        total = int(count_result.scalar_one())
 
-    # Fetch page of data
-    data_q = text(f"SELECT * FROM {identifier} OFFSET :offset LIMIT :limit")
-    data_result = await db.execute(data_q, {"offset": offset, "limit": limit})
-    rows = [dict(r) for r in data_result.mappings().all()]
+        # Fetch page of data
+        data_q = text(f"SELECT * FROM {identifier} OFFSET :offset LIMIT :limit")
+        data_result = await session.execute(data_q, {"offset": offset, "limit": limit})
+        rows = [dict(r) for r in data_result.mappings().all()]
 
     return {"total": total, "rows": rows}
 
@@ -80,11 +205,11 @@ async def read_table(
 async def table_meta(
     schema: str,
     table: str,
-    db: AsyncSession = Depends(get_db),
     current_user=Depends(get_current_user),
 ):
     """Return basic metadata for the given table (columns, PK, uniques)."""
     ensure_is_admin(current_user)
+    engine = await get_active_engine()
 
     # Columns
     cols_q = text(
@@ -100,7 +225,8 @@ async def table_meta(
         ORDER BY c.ordinal_position
         """
     )
-    cols_res = await db.execute(cols_q, {"schema": schema, "table": table})
+    async with AsyncSession(engine) as session:
+        cols_res = await session.execute(cols_q, {"schema": schema, "table": table})
     columns: List[Dict[str, Any]] = []
     for row in cols_res.mappings().all():
         columns.append(
@@ -130,7 +256,8 @@ async def table_meta(
         ORDER BY kcu.ordinal_position
         """
     )
-    pk_res = await db.execute(pk_q, {"schema": schema, "table": table})
+    async with AsyncSession(engine) as session:
+        pk_res = await session.execute(pk_q, {"schema": schema, "table": table})
     pk_columns = [r[0] for r in pk_res.fetchall()]
 
     # Unique constraints
@@ -149,7 +276,8 @@ async def table_meta(
         ORDER BY tc.constraint_name, kcu.ordinal_position
         """
     )
-    uniq_res = await db.execute(uniq_q, {"schema": schema, "table": table})
+    async with AsyncSession(engine) as session:
+        uniq_res = await session.execute(uniq_q, {"schema": schema, "table": table})
     unique_indexes: Dict[str, List[str]] = {}
     for cname, col in uniq_res.fetchall():
         unique_indexes.setdefault(cname, []).append(col)
@@ -179,7 +307,6 @@ async def insert_row(
     schema: str,
     table: str,
     payload: Dict[str, Any],
-    db: AsyncSession = Depends(get_db),
     current_user=Depends(get_current_user),
 ):
     """Insert a new row into the table.
@@ -187,6 +314,7 @@ async def insert_row(
     Expects body: {"values": {"col": value, ...}}
     """
     ensure_is_admin(current_user)
+    engine = await get_active_engine()
     values = payload.get("values") or {}
     if not isinstance(values, dict):
         raise HTTPException(status_code=400, detail="'values' must be an object")
@@ -195,9 +323,10 @@ async def insert_row(
     if not values:
         # Simple case: rely purely on defaults
         q = text(f"INSERT INTO {identifier} DEFAULT VALUES RETURNING *")
-        result = await db.execute(q)
-        row = result.mappings().first()
-        await db.commit()
+        async with AsyncSession(engine) as session:
+            result = await session.execute(q)
+            row = result.mappings().first()
+            await session.commit()
         return {"row": dict(row) if row is not None else None}
 
     cols = list(values.keys())
@@ -205,11 +334,11 @@ async def insert_row(
     col_params = ", ".join(f':{c}' for c in cols)
     q = text(f"INSERT INTO {identifier} ({col_names}) VALUES ({col_params}) RETURNING *")
     try:
-        result = await db.execute(q, values)
-        row = result.mappings().first()
-        await db.commit()
+        async with AsyncSession(engine) as session:
+            result = await session.execute(q, values)
+            row = result.mappings().first()
+            await session.commit()
     except Exception as exc:
-        await db.rollback()
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
     return {"row": dict(row) if row is not None else None}
@@ -220,7 +349,6 @@ async def update_row(
     schema: str,
     table: str,
     payload: Dict[str, Any],
-    db: AsyncSession = Depends(get_db),
     current_user=Depends(get_current_user),
 ):
     """Update a row identified by key.
@@ -228,6 +356,7 @@ async def update_row(
     Body: {"key": {"id": ...}, "values": {"col": newValue, ...}}
     """
     ensure_is_admin(current_user)
+    engine = await get_active_engine()
     key = payload.get("key") or {}
     values = payload.get("values") or {}
     if not isinstance(key, dict) or not key:
@@ -255,11 +384,11 @@ async def update_row(
     )
 
     try:
-        result = await db.execute(q, params)
-        rows = result.mappings().all()
-        await db.commit()
+        async with AsyncSession(engine) as session:
+            result = await session.execute(q, params)
+            rows = result.mappings().all()
+            await session.commit()
     except Exception as exc:
-        await db.rollback()
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
     if not rows:
@@ -275,7 +404,6 @@ async def delete_row(
     schema: str,
     table: str,
     payload: Dict[str, Any],
-    db: AsyncSession = Depends(get_db),
     current_user=Depends(get_current_user),
 ):
     """Delete a row identified by key.
@@ -283,6 +411,7 @@ async def delete_row(
     Body: {"key": {"id": ...}}
     """
     ensure_is_admin(current_user)
+    engine = await get_active_engine()
     key = payload.get("key") or {}
     if not isinstance(key, dict) or not key:
         raise HTTPException(status_code=400, detail="'key' must be a non-empty object")
@@ -297,11 +426,11 @@ async def delete_row(
     )
 
     try:
-        result = await db.execute(q, params)
-        deleted = result.rowcount or 0
-        await db.commit()
+        async with AsyncSession(engine) as session:
+            result = await session.execute(q, params)
+            deleted = result.rowcount or 0
+            await session.commit()
     except Exception as exc:
-        await db.rollback()
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
     if deleted == 0:
