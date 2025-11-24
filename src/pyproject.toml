@@ -12,7 +12,6 @@ dependencies = [
     "uvicorn[standard]",
     "sqlalchemy>=2.0",
     "asyncpg",
-    "jinja2",
     "pydantic>=2.0",
     "pydantic-settings>=2.0",
     "email-validator",
