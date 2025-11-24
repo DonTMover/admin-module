@@ -6,6 +6,7 @@ import type { CreateTablePayload, DbConnectionInfo, DbTable, DbTableRowsResponse
 import AddIcon from '@mui/icons-material/Add';
 import { useEffect, useMemo, useState } from 'react';
 import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 
 const PAGE_SIZE = 25;
 
@@ -558,7 +559,7 @@ export default function DbBrowser() {
                     Черновой предпросмотр Markdown
                   </Typography>
                   <Box sx={{ typography: 'body2', color: 'text.secondary', '& p': { m: 0 }, '& h1, & h2, & h3': { mt: 0.5, mb: 0.5, fontWeight: 600 }, '& ul, & ol': { pl: 3, mt: 0.5, mb: 0.5 } }}>
-                    <ReactMarkdown>{markdownPreview}</ReactMarkdown>
+                    <ReactMarkdown remarkPlugins={[remarkGfm]}>{markdownPreview}</ReactMarkdown>
                   </Box>
                 </Box>
               )}
