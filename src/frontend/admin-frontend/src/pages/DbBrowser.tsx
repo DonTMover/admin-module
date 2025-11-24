@@ -19,6 +19,12 @@ export default function DbBrowser() {
   const [connName, setConnName] = useState('');
   const [connDsn, setConnDsn] = useState('');
   const [connReadOnly, setConnReadOnly] = useState(false);
+  const [connHost, setConnHost] = useState('localhost');
+  const [connPort, setConnPort] = useState('5432');
+  const [connDb, setConnDb] = useState('');
+  const [connUser, setConnUser] = useState('');
+  const [connPassword, setConnPassword] = useState('');
+  const [connMode, setConnMode] = useState<'fields' | 'dsn'>('fields');
   const queryClient = useQueryClient();
 
   const { data: tables, isLoading: loadingTables, error: tablesError } = useQuery({
@@ -114,6 +120,16 @@ export default function DbBrowser() {
     () => connections?.find((c) => c.active)?.id ?? 0,
     [connections],
   );
+
+  const effectiveDsn = useMemo(() => {
+    if (connMode === 'dsn') {
+      return connDsn;
+    }
+    if (!connUser || !connPassword || !connDb || !connHost || !connPort) {
+      return '';
+    }
+    return `postgresql+asyncpg://${encodeURIComponent(connUser)}:${encodeURIComponent(connPassword)}@${connHost}:${connPort}/${connDb}`;
+  }, [connMode, connDsn, connUser, connPassword, connHost, connPort, connDb]);
 
   return (
     <Stack spacing={3}>
@@ -405,13 +421,91 @@ export default function DbBrowser() {
                 value={connName}
                 onChange={(event: React.ChangeEvent<HTMLInputElement>) => setConnName(event.target.value)}
               />
-              <TextField
-                label="DSN (postgresql+asyncpg://user:pass@host:port/db)"
-                size="small"
-                fullWidth
-                value={connDsn}
-                onChange={(event: React.ChangeEvent<HTMLInputElement>) => setConnDsn(event.target.value)}
-              />
+              <Stack direction="row" spacing={1} alignItems="center">
+                <Button
+                  variant={connMode === 'fields' ? 'contained' : 'outlined'}
+                  size="small"
+                  onClick={() => setConnMode('fields')}
+                >
+                  Поля
+                </Button>
+                <Button
+                  variant={connMode === 'dsn' ? 'contained' : 'outlined'}
+                  size="small"
+                  onClick={() => setConnMode('dsn')}
+                >
+                  DSN
+                </Button>
+                <Typography variant="caption" color="text.secondary">
+                  Заполните поля или введите готовую строку DSN.
+                </Typography>
+              </Stack>
+              {connMode === 'fields' ? (
+                <Stack spacing={1.5}>
+                  <TextField
+                    label="Тип"
+                    size="small"
+                    fullWidth
+                    value="PostgreSQL"
+                    disabled
+                  />
+                  <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.5}>
+                    <TextField
+                      label="Хост"
+                      size="small"
+                      fullWidth
+                      value={connHost}
+                      onChange={(event: React.ChangeEvent<HTMLInputElement>) => setConnHost(event.target.value)}
+                    />
+                    <TextField
+                      label="Порт"
+                      size="small"
+                      fullWidth
+                      value={connPort}
+                      onChange={(event: React.ChangeEvent<HTMLInputElement>) => setConnPort(event.target.value)}
+                    />
+                  </Stack>
+                  <TextField
+                    label="База данных"
+                    size="small"
+                    fullWidth
+                    value={connDb}
+                    onChange={(event: React.ChangeEvent<HTMLInputElement>) => setConnDb(event.target.value)}
+                  />
+                  <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.5}>
+                    <TextField
+                      label="Пользователь"
+                      size="small"
+                      fullWidth
+                      value={connUser}
+                      onChange={(event: React.ChangeEvent<HTMLInputElement>) => setConnUser(event.target.value)}
+                    />
+                    <TextField
+                      label="Пароль"
+                      type="password"
+                      size="small"
+                      fullWidth
+                      value={connPassword}
+                      onChange={(event: React.ChangeEvent<HTMLInputElement>) => setConnPassword(event.target.value)}
+                    />
+                  </Stack>
+                  <TextField
+                    label="Итоговый DSN"
+                    size="small"
+                    fullWidth
+                    value={effectiveDsn || 'Заполните все поля выше'}
+                    disabled
+                  />
+                </Stack>
+              ) : (
+                <TextField
+                  label="DSN (postgresql+asyncpg://user:pass@host:port/db)"
+                  size="small"
+                  fullWidth
+                  value={connDsn}
+                  onChange={(event: React.ChangeEvent<HTMLInputElement>) => setConnDsn(event.target.value)}
+                />
+              )}
               <Stack direction="row" spacing={1} alignItems="center">
                 <Button
                   variant={connReadOnly ? 'contained' : 'outlined'}
@@ -433,6 +527,12 @@ export default function DbBrowser() {
                 setConnDialogOpen(false);
                 setConnName('');
                 setConnDsn('');
+                setConnHost('localhost');
+                setConnPort('5432');
+                setConnDb('');
+                setConnUser('');
+                setConnPassword('');
+                setConnMode('fields');
                 setConnReadOnly(false);
               }}
             >
@@ -440,11 +540,12 @@ export default function DbBrowser() {
             </Button>
             <Button
               variant="contained"
-              disabled={!connDsn}
+              disabled={!effectiveDsn}
               onClick={async () => {
                 try {
-                  await testDbConnection(connDsn);
-                  const created = await createDbConnection(connName || 'custom', connDsn, connReadOnly);
+                  if (!effectiveDsn) return;
+                  await testDbConnection(effectiveDsn);
+                  const created = await createDbConnection(connName || 'custom', effectiveDsn, connReadOnly);
                   await activateDbConnection(created.id);
                   queryClient.invalidateQueries({ queryKey: ['db-connections'] });
                   queryClient.invalidateQueries({ queryKey: ['db-tables'] });
@@ -452,6 +553,12 @@ export default function DbBrowser() {
                   setConnDialogOpen(false);
                   setConnName('');
                   setConnDsn('');
+                  setConnHost('localhost');
+                  setConnPort('5432');
+                  setConnDb('');
+                  setConnUser('');
+                  setConnPassword('');
+                  setConnMode('fields');
                   setConnReadOnly(false);
                 } catch (error) {
                   // Ошибка теста или создания подключения отобразится через Alert, если добавить хэндлинг; пока просто не закрываем диалог

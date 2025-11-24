@@ -2,6 +2,7 @@ import axios from 'axios';
 
 const api = axios.create({
   baseURL: '/', // same origin; adjust if backend served elsewhere
+  withCredentials: true, // allow cookies from Caddy-origin backend
 });
 
 api.interceptors.request.use(cfg => {

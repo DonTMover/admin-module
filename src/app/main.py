@@ -14,6 +14,7 @@ from fastapi.exceptions import HTTPException
 from fastapi import status
 from pathlib import Path
 from app.models.base import Base
+from fastapi.middleware.cors import CORSMiddleware
 import uvicorn
 
 settings = get_settings()
@@ -27,6 +28,20 @@ app = FastAPI(
     openapi_url="/admin/openapi.json",
     contact={"name": "Egor"},
     license_info={"name": "Proprietary"},
+)
+
+# CORS: ограничиваем доступ к API только с доверенных фронтенд-оригинов
+origins = [
+    "http://localhost:5173",  # Vite dev server (по умолчанию)
+    "http://localhost",       # Caddy/SPA на локалхосте
+]
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=origins,
+    allow_credentials=True,
+    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    allow_headers=["Authorization", "Content-Type"],
 )
 
 # Роуты
