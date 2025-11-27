@@ -24,7 +24,9 @@ services:
     build:
       context: ./src
       dockerfile: Dockerfile
+    image: admin-module:latest 
     container_name: admin-module
+
     # Mount local frontend source for rapid dev (optional):
     # volumes:
     #   - ./src/frontend/admin-frontend:/app/frontend-src:ro
